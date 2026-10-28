@@ -1,0 +1,718 @@
+/* ==========================================================================
+   SYSTEM DESIGN LAB - CACHING & LOAD BALANCING VISUALIZATIONS
+   Interactive educational simulations for the Student Leaderboard
+   Preserving Dark Navy & Light Cream Themes • Pure SVG Vectors • Zero Emojis
+   ========================================================================== */
+
+/* Main Lab Container */
+.system-design-lab-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+/* Lab Module Navigation Header */
+.lab-nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 1rem 1.5rem;
+  box-shadow: var(--shadow-card);
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.lab-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.lab-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--accent-purple-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 4px 12px var(--accent-purple-shadow);
+  flex-shrink: 0;
+}
+
+.lab-icon-box svg {
+  width: 22px;
+  height: 22px;
+}
+
+.lab-module-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-card-inner);
+  padding: 0.25rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border-subtle);
+}
+
+.lab-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.5rem 1.25rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lab-tab-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+}
+
+.lab-tab-btn.active {
+  background: var(--accent-purple-primary);
+  color: #ffffff;
+  box-shadow: 0 2px 10px var(--accent-purple-shadow);
+}
+
+[data-theme="light"] .lab-tab-btn.active {
+  background: var(--text-primary);
+  color: var(--bg-surface);
+}
+
+/* Lab Viewport Cards */
+.lab-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 24px;
+  box-shadow: var(--shadow-card);
+  padding: 1.75rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Control Toolbar within Simulation */
+.sim-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sim-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.sim-btn {
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 0.55rem 1.15rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.sim-btn:active {
+  transform: scale(0.97);
+}
+
+.sim-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+}
+
+.sim-btn-primary {
+  background: var(--accent-purple-primary);
+  color: #ffffff;
+  box-shadow: 0 4px 14px var(--accent-purple-shadow);
+}
+
+.sim-btn-primary:hover {
+  background: var(--accent-purple-dark);
+}
+
+.sim-btn-secondary {
+  background: var(--bg-card-inner);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.sim-btn-secondary:hover {
+  background: var(--bg-row-hover);
+  border-color: var(--border-medium);
+}
+
+.sim-btn-danger {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.sim-btn-danger:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.sim-btn-warning {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+
+.sim-btn-warning:hover {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+/* Simulation Live Status Banner */
+.sim-status-banner {
+  padding: 0.75rem 1.25rem;
+  border-radius: 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card-inner);
+  transition: all 0.3s ease;
+}
+
+.sim-status-banner.hit {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+}
+
+.sim-status-banner.miss {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.15);
+}
+
+.sim-status-banner.invalidated {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.status-tag.hit {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.status-tag.miss {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+.status-tag.idle {
+  background: var(--bg-surface);
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   INTERACTIVE CANVAS & TOPOLOGY DIAGRAM
+   ========================================================================== */
+.sim-diagram-canvas {
+  position: relative;
+  width: 100%;
+  min-height: 380px;
+  background: var(--bg-card-inner);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 2rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  overflow: hidden;
+}
+
+/* SVG Connection Lines Layer */
+.sim-connections-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.connection-path {
+  stroke: var(--border-subtle);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 6;
+  fill: none;
+  transition: stroke 0.3s ease;
+}
+
+.connection-path.active-path {
+  stroke: var(--accent-purple-light);
+  stroke-width: 3;
+  animation: dashAnimation 1s linear infinite;
+}
+
+.connection-path.hit-path {
+  stroke: #10b981;
+  stroke-width: 3.5;
+  animation: dashAnimation 0.8s linear infinite;
+}
+
+.connection-path.miss-path {
+  stroke: #f59e0b;
+  stroke-width: 3.5;
+  animation: dashAnimation 0.8s linear infinite;
+}
+
+@keyframes dashAnimation {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Topology System Nodes */
+.topology-node {
+  position: relative;
+  z-index: 10;
+  background: var(--bg-surface);
+  border: 2px solid var(--border-subtle);
+  border-radius: 18px;
+  padding: 1.25rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 170px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.topology-node.active-node {
+  border-color: var(--accent-purple-primary);
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 12px 30px var(--accent-purple-shadow);
+}
+
+.topology-node.hit-node {
+  border-color: #10b981;
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.35);
+  transform: translateY(-4px) scale(1.03);
+}
+
+.topology-node.miss-node {
+  border-color: #f59e0b;
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.35);
+  transform: translateY(-4px) scale(1.03);
+}
+
+.topology-node.failed-node {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.25);
+  opacity: 0.8;
+}
+
+.node-icon-bubble {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--bg-card-inner);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  margin-bottom: 0.65rem;
+  transition: all 0.3s ease;
+}
+
+.node-icon-bubble svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+}
+
+.hit-node .node-icon-bubble {
+  background: #10b981;
+  color: #ffffff;
+  border-color: #10b981;
+}
+
+.miss-node .node-icon-bubble {
+  background: #f59e0b;
+  color: #ffffff;
+  border-color: #f59e0b;
+}
+
+.failed-node .node-icon-bubble {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.node-title {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 0.2rem;
+}
+
+.node-subtitle {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.node-badge-tag {
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  background: var(--bg-card-inner);
+  color: var(--text-secondary);
+}
+
+/* Animated Data Packet */
+.animated-packet {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-purple-light);
+  box-shadow: 0 0 12px var(--accent-purple-shadow);
+  z-index: 20;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: top 0.4s ease, left 0.4s ease;
+}
+
+.animated-packet.packet-hit {
+  background: #10b981;
+  box-shadow: 0 0 14px #10b981;
+}
+
+.animated-packet.packet-miss {
+  background: #f59e0b;
+  box-shadow: 0 0 14px #f59e0b;
+}
+
+/* ==========================================================================
+   METRICS & COUNTERS GRID
+   ========================================================================== */
+.sim-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 1rem;
+}
+
+.sim-metric-card {
+  background: var(--bg-card-inner);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 1.15rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.metric-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.metric-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.metric-val {
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.metric-val.emerald {
+  color: #10b981;
+}
+.metric-val.amber {
+  color: #f59e0b;
+}
+.metric-val.purple {
+  color: var(--accent-purple-light);
+}
+
+.metric-sub {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+/* Hit Ratio Gauge Bar */
+.ratio-progress-wrap {
+  width: 100%;
+  height: 6px;
+  background: var(--progress-track);
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-top: 0.25rem;
+}
+
+.ratio-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #06b6d4);
+  border-radius: 9999px;
+  transition: width 0.4s ease;
+}
+
+/* Beginner-Friendly Explanation Callout */
+.sim-explainer-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  background: rgba(108, 92, 231, 0.08);
+  border: 1px solid rgba(108, 92, 231, 0.22);
+  border-radius: 16px;
+  padding: 1.15rem 1.4rem;
+}
+
+[data-theme="light"] .sim-explainer-callout {
+  background: rgba(181, 226, 32, 0.15);
+  border-color: rgba(181, 226, 32, 0.35);
+}
+
+.explainer-icon-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-purple-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+[data-theme="light"] .explainer-icon-circle {
+  background: #557508;
+}
+
+.explainer-icon-circle svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+}
+
+.explainer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.explainer-title {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.explainer-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+/* ==========================================================================
+   LOAD BALANCER SPECIFIC STYLES
+   Servers Topology Grid & Distribution Chart
+   ========================================================================== */
+.lb-servers-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  z-index: 10;
+}
+
+.lb-server-node {
+  width: 180px;
+  background: var(--bg-surface);
+  border: 2px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  transition: all 0.25s ease;
+}
+
+.lb-server-node.active-server {
+  border-color: var(--accent-purple-primary);
+  box-shadow: 0 0 16px var(--accent-purple-shadow);
+  transform: translateX(4px);
+}
+
+.lb-server-node.server-down {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  opacity: 0.65;
+}
+
+.server-info-col {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.server-name {
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.server-req-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.server-health-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.lb-server-node.server-down .server-health-indicator {
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+/* Distribution Bar Chart in Load Balancer */
+.distribution-bars-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.dist-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dist-bar-label {
+  width: 110px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.dist-bar-track {
+  flex: 1;
+  height: 10px;
+  background: var(--progress-track);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.dist-bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.4s ease;
+}
+
+.dist-bar-fill.server-1 {
+  background: linear-gradient(90deg, #6c5ce7, #8572fa);
+}
+.dist-bar-fill.server-2 {
+  background: linear-gradient(90deg, #06b6d4, #38bdf8);
+}
+.dist-bar-fill.server-3 {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.dist-bar-val {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  width: 50px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .sim-diagram-canvas {
+    flex-direction: column;
+    gap: 2rem;
+    min-height: auto;
+  }
+  .topology-node {
+    width: 100%;
+    max-width: 280px;
+  }
+  .lb-servers-stack {
+    width: 100%;
+    max-width: 280px;
+  }
+  .lb-server-node {
+    width: 100%;
+  }
+  .sim-connections-svg {
+    display: none; /* Hide linear SVG paths on vertical stack */
+  }
+}

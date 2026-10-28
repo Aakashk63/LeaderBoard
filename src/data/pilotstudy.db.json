@@ -1,0 +1,43 @@
+{
+  "database": "pilotstudy",
+  "version": "1.0.0",
+  "description": "Student Pilot Study Program - Performance and Points Database",
+  "max_score": 115,
+  "tables": {
+    "students": [
+      { "id": "std-1", "student_name": "R.Reshma", "total_points": 94, "rank": 2, "percentage": 81.7 },
+      { "id": "std-2", "student_name": "Nihal Ahmed I", "total_points": 82, "rank": 4, "percentage": 71.3 },
+      { "id": "std-3", "student_name": "Sanjay S", "total_points": 74, "rank": 6, "percentage": 64.3 },
+      { "id": "std-4", "student_name": "SAMYUKTHA P V", "total_points": 102, "rank": 1, "percentage": 88.7 },
+      { "id": "std-5", "student_name": "Naveen Sushant G", "total_points": 78, "rank": 5, "percentage": 67.8 },
+      { "id": "std-6", "student_name": "Mithiun.V", "total_points": 67, "rank": 8, "percentage": 58.3 },
+      { "id": "std-7", "student_name": "ASHWANTH.E.M", "total_points": 88, "rank": 3, "percentage": 76.5 },
+      { "id": "std-8", "student_name": "Hasan Mohammed", "total_points": 63, "rank": 9, "percentage": 54.8 },
+      { "id": "std-9", "student_name": "MOHAMMAD ELIYAAZ", "total_points": 71, "rank": 7, "percentage": 61.7 },
+      { "id": "std-10", "student_name": "Dharun T R", "total_points": 58, "rank": 10, "percentage": 50.4 },
+      { "id": "std-11", "student_name": "Geetan D", "total_points": 46, "rank": 13, "percentage": 40.0 },
+      { "id": "std-12", "student_name": "Dhiyanesh Senthil.S", "total_points": 54, "rank": 11, "percentage": 47.0 },
+      { "id": "std-13", "student_name": "Breno", "total_points": 38, "rank": 15, "percentage": 33.0 },
+      { "id": "std-14", "student_name": "Santhosh", "total_points": 42, "rank": 14, "percentage": 36.5 },
+      { "id": "std-15", "student_name": "Kabilash", "total_points": 35, "rank": 16, "percentage": 30.4 },
+      { "id": "std-16", "student_name": "Banusri", "total_points": 30, "rank": 17, "percentage": 26.1 },
+      { "id": "std-17", "student_name": "Dharsiga", "total_points": 26, "rank": 18, "percentage": 22.6 },
+      { "id": "std-18", "student_name": "Aishwarya", "total_points": 22, "rank": 19, "percentage": 19.1 },
+      { "id": "std-19", "student_name": "Ashok Britto.P", "total_points": 18, "rank": 20, "percentage": 15.7 },
+      { "id": "std-20", "student_name": "S.KEERTHANA", "total_points": 50, "rank": 12, "percentage": 43.5 }
+    ],
+    "categories": [
+      { "id": "early_bird", "name": "Early Bird", "max_points": 10 },
+      { "id": "night_owl", "name": "Late Night Owl", "max_points": 10 },
+      { "id": "leetcode", "name": "LeetCode Champion", "max_points": 5 },
+      { "id": "empathizer", "name": "Best Empathizer", "max_points": 5 },
+      { "id": "workbench", "name": "Hands-on Planner (Workbench)", "max_points": 10 },
+      { "id": "frontend", "name": "Visual Treater (Frontend)", "max_points": 10 },
+      { "id": "dt_playbook", "name": "Journalizer (DT Playbook)", "max_points": 5 },
+      { "id": "assessment", "name": "Assessment Cracker", "max_points": 5 },
+      { "id": "okr", "name": "OKR Finalizer", "max_points": 5 },
+      { "id": "all_rounder", "name": "All-Round Performer", "max_points": 25 },
+      { "id": "team_lead", "name": "Best Team Lead", "max_points": 25 }
+    ]
+  }
+}
