@@ -657,7 +657,7 @@ function setLoginRole(role) {
     if (elements.fieldSignInFullName) elements.fieldSignInFullName.style.display = 'none';
     if (elements.inputSignInFullName) elements.inputSignInFullName.required = false;
     if (elements.labelSignInEmail) elements.labelSignInEmail.textContent = 'Mentor / Administrator Email';
-    if (elements.inputSignInEmail) elements.inputSignInEmail.placeholder = 'e.g. mentor@pilotstudy.snsct.edu.in';
+    if (elements.inputSignInEmail) elements.inputSignInEmail.placeholder = 'e.g. akaakashsvg63@gmail.com';
     if (elements.panelSignInGps) elements.panelSignInGps.style.display = 'none';
 
     if (elements.btnStandaloneSignInSubmit) {
@@ -822,6 +822,17 @@ async function handleStudentCheckOutAndLogout() {
     return;
   }
 
+  // If student already completed checkout today, proceed directly to secure sign out
+  const summary = attendanceService.getStudentAttendanceSummary(authUser.student_id);
+  const alreadyCheckedOut = !!summary?.todayRecord?.logout_at;
+  if (alreadyCheckedOut) {
+    await authService.signOut();
+    attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
+    syncAuthStateView();
+    showStandaloneAuthFeedback('Signed out securely.', 'idle');
+    return;
+  }
+
   // Students must pass fresh GPS verification before checkout
   showCheckoutFeedback('Acquiring fresh browser GPS location at SNS College of Technology for checkout...', 'loading');
   if (elements.btnStudentDashboardCheckout) elements.btnStudentDashboardCheckout.disabled = true;
@@ -837,6 +848,13 @@ async function handleStudentCheckOutAndLogout() {
   const checkOutResult = await attendanceService.performCheckOut(authUser.student_id);
 
   if (!checkOutResult.success) {
+    if (checkOutResult.message && checkOutResult.message.includes('already completed check-out')) {
+      await authService.signOut();
+      attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
+      syncAuthStateView();
+      showStandaloneAuthFeedback('Signed out securely.', 'idle');
+      return;
+    }
     showCheckoutFeedback(checkOutResult.message, 'error');
     if (elements.btnStudentDashboardCheckout) elements.btnStudentDashboardCheckout.disabled = false;
     return;

@@ -33,6 +33,14 @@ export const STUDENT_ACCOUNTS = [
 // Pre-registered Mentor / Trainer Accounts Directory
 export const MENTOR_ACCOUNTS = [
   {
+    mentor_id: 'mentor-aakash',
+    username: 'aakash',
+    email: 'akaakashsvg63@gmail.com',
+    student_name: 'Aakash (Mentor)',
+    role: 'mentor',
+    defaultPassword: 'Aakash@1234'
+  },
+  {
     mentor_id: 'mentor-1',
     username: 'mentor',
     email: 'mentor@pilotstudy.snsct.edu.in',
