@@ -7,9 +7,14 @@ import { createClient } from '@supabase/supabase-js';
 import { attendanceService } from './attendanceDatabase.js';
 import { appQueryCache } from './cacheEngine.js';
 
-// Environment credentials
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://iridkxcusdcwqgtytspg.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_E8QXnrStdwmwIAFtt_c2RQ_We3OAfRx';
+// Environment credentials (works seamlessly in both Vite and Node.js testing runtimes)
+const SUPABASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
+  (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) ||
+  'https://iridkxcusdcwqgtytspg.supabase.co';
+
+const SUPABASE_KEY = (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_SUPABASE_ANON_KEY || import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY)) ||
+  (typeof process !== 'undefined' && (process.env?.VITE_SUPABASE_ANON_KEY || process.env?.VITE_SUPABASE_PUBLISHABLE_KEY)) ||
+  'sb_publishable_E8QXnrStdwmwIAFtt_c2RQ_We3OAfRx';
 
 // Initialize Supabase Client
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -98,12 +103,16 @@ export class PilotStudyRealtimeDatabase {
     this.setupRealtimeSubscription();
 
     // Listen for attendance and daily award changes to update cumulative scores live
-    attendanceService.on('change', () => {
-      if (this.students && this.students.length > 0) {
-        this.students = this.students.map(record => this.normalizeStudentRecord(record));
-        this.recalculateRanks();
-        this.saveToCache();
-        this.emit('change', this.students);
+    queueMicrotask(() => {
+      if (typeof attendanceService !== 'undefined' && attendanceService.on) {
+        attendanceService.on('change', () => {
+          if (this.students && this.students.length > 0) {
+            this.students = this.students.map(record => this.normalizeStudentRecord(record));
+            this.recalculateRanks();
+            this.saveToCache();
+            this.emit('change', this.students);
+          }
+        });
       }
     });
   }

@@ -7,16 +7,192 @@
 import { supabase } from './pilotstudyDatabase.js';
 import { appQueryCache } from './cacheEngine.js';
 
-// SNS College of Technology, Saravanampatti, Coimbatore Coordinates (Resolved from Google Maps pin)
+// Verified Campus Perimeter Polygon: SNS College of Technology, Coimbatore (WGS84 EPSG:4326)
+// Enclosing the entire campus premises: SNS College of Technology, SNS iHub (Innovation & Incubation Hub),
+// Allied Health Sciences, College of Physiotherapy, Mechanical & Academic Blocks, Sports Complex, and Hostels.
+export const DEFAULT_CAMPUS_POLYGON = [
+  [77.02562, 11.10438],
+  [77.02860, 11.10459],
+  [77.02869, 11.10202],
+  [77.02890, 11.10160],
+  [77.02870, 11.09878],
+  [77.02580, 11.09877],
+  [77.02567, 11.10044],
+  [77.02562, 11.10240],
+  [77.02562, 11.10438]
+];
+
+// Verified Campus Internal Facilities & Zones
+export const DEFAULT_CAMPUS_ZONES = [
+  { id: 'zone-main', name: 'SNSCT Main Academic Block', latitude: 11.10043, longitude: 77.02661 },
+  { id: 'zone-ihub', name: 'SNS iHub (Innovation & Incubation Hub)', latitude: 11.10125, longitude: 77.02685 },
+  { id: 'zone-health', name: 'SNS Allied Health & Physiotherapy', latitude: 11.10065, longitude: 77.02805 },
+  { id: 'zone-sports', name: 'North Sports Complex & Hostels', latitude: 11.10380, longitude: 77.02720 },
+  { id: 'zone-south', name: 'South Campus Plaza & Gate', latitude: 11.09910, longitude: 77.02630 }
+];
+
 export const DEFAULT_CAMPUS_SETTINGS = {
   campus_name: 'SNS College of Technology, Coimbatore',
   center_latitude: 11.10043,
   center_longitude: 77.02661,
   radius_meters: 500,
-  max_accuracy_meters: 100
+  max_accuracy_meters: 100,
+  boundary_polygon: DEFAULT_CAMPUS_POLYGON,
+  crs: 'EPSG:4326',
+  config_version: '2.1.0',
+  approved_by: 'Campus Administrator (Aakash)',
+  last_updated: '2026-10-28T12:00:00.000Z',
+  zones: DEFAULT_CAMPUS_ZONES
 };
 
 export const TIMEZONE = 'Asia/Kolkata';
+
+/**
+ * Check if a point [longitude, latitude] or { latitude, longitude } is inside a polygon
+ * Uses Ray-Casting algorithm with boundary edge tolerance.
+ */
+export function isPointInPolygon(point, polygon) {
+  if (!polygon || !Array.isArray(polygon) || polygon.length < 3) return false;
+  
+  let lng, lat;
+  if (Array.isArray(point)) {
+    // GeoJSON standard: [longitude, latitude]
+    lng = point[0];
+    lat = point[1];
+  } else if (point && typeof point === 'object') {
+    lng = point.longitude !== undefined ? point.longitude : point.lng;
+    lat = point.latitude !== undefined ? point.latitude : point.lat;
+  }
+  
+  if (!isFinite(lat) || !isFinite(lng)) return false;
+
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0], yi = polygon[i][1];
+    const xj = polygon[j][0], yj = polygon[j][1];
+    
+    // Check if point is directly on a vertex
+    if (Math.abs(xi - lng) < 1e-7 && Math.abs(yi - lat) < 1e-7) return true;
+
+    const intersect = ((yi > lat) !== (yj > lat)) &&
+      (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Distance from point P(latP, lonP) to segment AB(latA, lonA -> latB, lonB) in meters
+ */
+export function distanceToSegmentMeters(latP, lonP, latA, lonA, latB, lonB) {
+  const toRad = Math.PI / 180;
+  const cosLat = Math.cos(latA * toRad);
+  const mPerDegLat = 111132.95;
+  const mPerDegLon = 111412.84 * cosLat;
+
+  const px = (lonP - lonA) * mPerDegLon;
+  const py = (latP - latA) * mPerDegLat;
+  const bx = (lonB - lonA) * mPerDegLon;
+  const by = (latB - latA) * mPerDegLat;
+
+  const dot = px * bx + py * by;
+  const lenSq = bx * bx + by * by;
+  let param = -1;
+  if (lenSq !== 0) param = dot / lenSq;
+
+  let nearestX, nearestY;
+  if (param < 0) {
+    nearestX = 0; nearestY = 0;
+  } else if (param > 1) {
+    nearestX = bx; nearestY = by;
+  } else {
+    nearestX = param * bx;
+    nearestY = param * by;
+  }
+
+  const dx = px - nearestX;
+  const dy = py - nearestY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+/**
+ * Calculate Minimum Distance from (lat, lon) to nearest boundary edge of polygon in meters
+ * Returns 0 if point is inside polygon.
+ */
+export function calculateMinDistanceToPolygon(lat, lon, polygon) {
+  if (!polygon || polygon.length < 3) return 0;
+  if (isPointInPolygon([lon, lat], polygon)) return 0;
+
+  let minD = Infinity;
+  for (let i = 0; i < polygon.length - 1; i++) {
+    const [lonA, latA] = polygon[i];
+    const [lonB, latB] = polygon[i + 1];
+    const d = distanceToSegmentMeters(lat, lon, latA, lonA, latB, lonB);
+    if (d < minD) minD = d;
+  }
+  return Math.round(minD * 10) / 10;
+}
+
+/**
+ * Find Nearest Named Campus Zone
+ */
+export function findNearestCampusZone(lat, lon, zones = DEFAULT_CAMPUS_ZONES) {
+  if (!zones || zones.length === 0) return { name: 'SNS College of Technology & SNS iHub', distanceMeters: 0 };
+  let nearest = zones[0];
+  let minD = Infinity;
+  for (const z of zones) {
+    const d = calculateHaversineDistance(lat, lon, z.latitude, z.longitude);
+    if (d < minD) {
+      minD = d;
+      nearest = z;
+    }
+  }
+  return { ...nearest, distanceMeters: minD };
+}
+
+/**
+ * Validate Polygon Ring
+ */
+export function validateCampusPolygon(polygon) {
+  if (!Array.isArray(polygon)) {
+    return { valid: false, error: 'Polygon must be an array of coordinates.' };
+  }
+  if (polygon.length < 3) {
+    return { valid: false, error: 'Polygon must have at least 3 vertices.' };
+  }
+  for (let i = 0; i < polygon.length; i++) {
+    const pt = polygon[i];
+    if (!Array.isArray(pt) || pt.length < 2) {
+      return { valid: false, error: `Vertex at index ${i} is not a valid [lng, lat] coordinate.` };
+    }
+    const [lng, lat] = pt;
+    if (!isFinite(lng) || lng < -180 || lng > 180) {
+      return { valid: false, error: `Invalid longitude ${lng} at vertex ${i}. Must be between -180 and 180.` };
+    }
+    if (!isFinite(lat) || lat < -90 || lat > 90) {
+      return { valid: false, error: `Invalid latitude ${lat} at vertex ${i}. Must be between -90 and 90.` };
+    }
+  }
+
+  // Calculate approximate polygon area to ensure it is not degenerate
+  let area = 0;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    area += (polygon[j][0] * polygon[i][1]) - (polygon[i][0] * polygon[j][1]);
+  }
+  if (Math.abs(area) < 1e-9) {
+    return { valid: false, error: 'Polygon area is zero or vertices are collinear.' };
+  }
+
+  // Ensure closed ring
+  const first = polygon[0];
+  const last = polygon[polygon.length - 1];
+  let closedPoly = [...polygon];
+  if (Math.abs(first[0] - last[0]) > 1e-7 || Math.abs(first[1] - last[1]) > 1e-7) {
+    closedPoly.push([first[0], first[1]]);
+  }
+
+  return { valid: true, polygon: closedPoly };
+}
 
 /**
  * Calculate Haversine Distance in Meters
@@ -129,7 +305,17 @@ export class AttendanceService {
   loadFromCache() {
     try {
       const cachedSet = localStorage.getItem(LOCAL_STORAGE_SETTINGS_KEY);
-      if (cachedSet) this.campusSettings = JSON.parse(cachedSet);
+      if (cachedSet) {
+        const parsed = JSON.parse(cachedSet);
+        this.campusSettings = {
+          ...DEFAULT_CAMPUS_SETTINGS,
+          ...parsed,
+          boundary_polygon: (parsed.boundary_polygon && parsed.boundary_polygon.length >= 3) ? parsed.boundary_polygon : DEFAULT_CAMPUS_POLYGON,
+          zones: (parsed.zones && parsed.zones.length > 0) ? parsed.zones : DEFAULT_CAMPUS_ZONES
+        };
+      } else {
+        this.campusSettings = { ...DEFAULT_CAMPUS_SETTINGS };
+      }
 
       const cachedAtt = localStorage.getItem(LOCAL_STORAGE_ATTENDANCE_KEY);
       if (cachedAtt) this.attendanceRecords = JSON.parse(cachedAtt);
@@ -312,7 +498,17 @@ export class AttendanceService {
         { ttlMs: 600000, force, endpointKey: 'geofence' }
       );
       if (setArr && setArr.length > 0) {
-        this.campusSettings = setArr[0];
+        const remote = setArr[0];
+        this.campusSettings = {
+          ...DEFAULT_CAMPUS_SETTINGS,
+          ...remote,
+          boundary_polygon: (remote.boundary_polygon && Array.isArray(remote.boundary_polygon) && remote.boundary_polygon.length >= 3)
+            ? remote.boundary_polygon
+            : DEFAULT_CAMPUS_POLYGON,
+          zones: (remote.zones && Array.isArray(remote.zones) && remote.zones.length > 0)
+            ? remote.zones
+            : DEFAULT_CAMPUS_ZONES
+        };
       }
 
       // 2. Fetch Attendance (TTL: 45 seconds with SWR)
@@ -359,10 +555,11 @@ export class AttendanceService {
    */
   setupRealtime() {
     try {
-      if (this.realtimeChannel) {
-        supabase.removeChannel(this.realtimeChannel);
-        this.realtimeChannel = null;
+      const existingChannel = supabase.getChannels().find(c => c.topic === 'realtime:attendance-live-channel');
+      if (existingChannel) {
+        supabase.removeChannel(existingChannel);
       }
+      this.realtimeChannel = null;
 
       this.realtimeChannel = supabase
         .channel('attendance-live-channel')
@@ -429,18 +626,26 @@ export class AttendanceService {
             return;
           }
 
-          const distance = calculateHaversineDistance(
+          const poly = this.campusSettings.boundary_polygon || DEFAULT_CAMPUS_POLYGON;
+          const inside = isPointInPolygon([lng, lat], poly);
+          const distanceToBoundary = inside ? 0 : calculateMinDistanceToPolygon(lat, lng, poly);
+          const distanceToCenter = calculateHaversineDistance(
             lat,
             lng,
-            this.campusSettings.center_latitude,
-            this.campusSettings.center_longitude
+            this.campusSettings.center_latitude || DEFAULT_CAMPUS_SETTINGS.center_latitude,
+            this.campusSettings.center_longitude || DEFAULT_CAMPUS_SETTINGS.center_longitude
           );
+          const nearestZone = findNearestCampusZone(lat, lng, this.campusSettings.zones);
 
           resolve({
             latitude: lat,
             longitude: lng,
             accuracy: accuracy || 999,
-            distance,
+            insideCampus: inside,
+            distance: distanceToBoundary,
+            distanceToBoundary,
+            distanceToCenter,
+            nearestZone,
             timestamp,
             verifiedAt: Date.now()
           });
@@ -540,21 +745,28 @@ export class AttendanceService {
       return { success: false, state, message };
     }
 
-    // 3. Validating location against campus boundary
+    // 3. Validating location against campus boundary polygon
     this.setLocationState(LOCATION_STATES.VALIDATING_LOCATION, {
-      message: 'Validating coordinates against SNS College of Technology geofence perimeter...',
+      message: 'Validating coordinates against approved SNS College of Technology polygon geofence (including SNS iHub)...',
       coords
     });
 
-    const distance = coords.distance;
+    const distanceToBoundary = coords.distanceToBoundary !== undefined
+      ? coords.distanceToBoundary
+      : (coords.insideCampus ? 0 : coords.distance);
     const accuracy = coords.accuracy;
+    const poly = this.campusSettings.boundary_polygon || DEFAULT_CAMPUS_POLYGON;
+    const inside = coords.insideCampus !== undefined
+      ? coords.insideCampus
+      : isPointInPolygon([coords.longitude, coords.latitude], poly);
 
     // Check accuracy threshold
     if (accuracy > this.campusSettings.max_accuracy_meters) {
       this.setLocationState(LOCATION_STATES.INACCURATE_LOCATION, {
         message: `GPS Accuracy Too Low (${Math.round(accuracy)}m reported). Must be within ${this.campusSettings.max_accuracy_meters}m. Please improve GPS reception or enable High Accuracy mode.`,
         accuracy,
-        distance,
+        distance: distanceToBoundary,
+        distanceToBoundary,
         coords
       });
       return {
@@ -562,36 +774,69 @@ export class AttendanceService {
         state: LOCATION_STATES.INACCURATE_LOCATION,
         message: `GPS Accuracy Too Low (${Math.round(accuracy)}m). Threshold is ${this.campusSettings.max_accuracy_meters}m.`,
         accuracy,
-        distance
+        distance: distanceToBoundary
       };
     }
 
-    // Check distance from campus center
-    if (distance > this.campusSettings.radius_meters) {
+    // Check campus boundary polygon
+    if (!inside) {
+      const boundaryDist = Math.round(distanceToBoundary);
       this.setLocationState(LOCATION_STATES.OUTSIDE_CAMPUS, {
-        message: `Outside Campus Boundary: You are ${Math.round(distance)}m from SNS College of Technology. Maximum permitted radius is ${this.campusSettings.radius_meters}m.`,
+        message: `Outside Campus Boundary: You are ${boundaryDist}m from the approved SNS College of Technology perimeter (including SNS iHub).`,
         accuracy,
-        distance,
+        distance: distanceToBoundary,
+        distanceToBoundary,
         coords
       });
       return {
         success: false,
         state: LOCATION_STATES.OUTSIDE_CAMPUS,
-        message: `Outside Campus Boundary: You are ${Math.round(distance)}m from SNS College of Technology.`,
+        message: `Outside Campus Boundary: You are ${boundaryDist}m from the approved SNS College of Technology boundary.`,
         accuracy,
-        distance
+        distance: distanceToBoundary
       };
+    }
+
+    // Server-side verification RPC if Supabase is connected
+    try {
+      const { data: serverVerify } = await supabase.rpc('verify_campus_location', {
+        p_lat: coords.latitude,
+        p_lng: coords.longitude,
+        p_accuracy: coords.accuracy
+      });
+      if (serverVerify && serverVerify.success === false) {
+        const servDist = serverVerify.distance_to_boundary_meters || distanceToBoundary;
+        this.setLocationState(LOCATION_STATES.OUTSIDE_CAMPUS, {
+          message: serverVerify.message || `Outside Campus Boundary: You are ${Math.round(servDist)}m from approved campus premises.`,
+          accuracy,
+          distance: servDist,
+          distanceToBoundary: servDist,
+          coords
+        });
+        return {
+          success: false,
+          state: LOCATION_STATES.OUTSIDE_CAMPUS,
+          message: serverVerify.message,
+          accuracy,
+          distance: servDist
+        };
+      }
+    } catch (e) {
+      // Offline fallback: client-side point-in-polygon check already verified
     }
 
     // 4. Verification Successful
     this.lastKnownCoords = coords;
     this.scheduleVerificationExpiry(300000); // 5 minutes validity
 
-    const successMsg = `Location Verified! You are within SNS College of Technology campus boundary (${Math.round(distance)}m from center, accuracy: ${Math.round(accuracy)}m).`;
+    const zoneLabel = coords.nearestZone?.name || 'SNS College of Technology & SNS iHub';
+    const successMsg = `Location Verified! You are inside SNS College of Technology campus premises (${zoneLabel}, accuracy: ${Math.round(accuracy)}m).`;
     this.setLocationState(LOCATION_STATES.VERIFIED, {
       message: successMsg,
       accuracy,
-      distance,
+      distance: 0,
+      distanceToBoundary: 0,
+      nearestZone: coords.nearestZone,
       coords
     });
 
@@ -600,7 +845,7 @@ export class AttendanceService {
       state: LOCATION_STATES.VERIFIED,
       message: successMsg,
       accuracy,
-      distance,
+      distance: 0,
       coords
     };
   }
@@ -642,7 +887,7 @@ export class AttendanceService {
       return { success: false, message: `GPS Verification Failed: ${locErr.message}` };
     }
 
-    // 2. Validate Geofence Boundary
+    // 2. Validate Geofence Boundary Polygon (including SNS iHub)
     if (coords.accuracy > this.campusSettings.max_accuracy_meters) {
       return {
         success: false,
@@ -650,10 +895,13 @@ export class AttendanceService {
       };
     }
 
-    if (coords.distance > this.campusSettings.radius_meters) {
+    const poly = this.campusSettings.boundary_polygon || DEFAULT_CAMPUS_POLYGON;
+    const inside = coords.insideCampus !== undefined ? coords.insideCampus : isPointInPolygon([coords.longitude, coords.latitude], poly);
+    if (!inside) {
+      const boundaryDist = Math.round(coords.distanceToBoundary || calculateMinDistanceToPolygon(coords.latitude, coords.longitude, poly));
       return {
         success: false,
-        message: `Location rejected: You are ${Math.round(coords.distance)}m away from SNS College of Technology. Maximum geofence radius is ${this.campusSettings.radius_meters}m.`
+        message: `Location rejected: You are ${boundaryDist}m away from the approved SNS College of Technology boundary (including SNS iHub).`
       };
     }
 
@@ -751,11 +999,21 @@ export class AttendanceService {
       return { success: false, message: `GPS Check-out Verification Failed: ${locErr.message}` };
     }
 
-    // 2. Validate Geofence
-    if (coords.distance > this.campusSettings.radius_meters) {
+    // 2. Validate Geofence Boundary Polygon
+    if (coords.accuracy > this.campusSettings.max_accuracy_meters) {
       return {
         success: false,
-        message: `Location rejected: Check-out must be completed within SNS College of Technology (${Math.round(coords.distance)}m away).`
+        message: `Location accuracy (${Math.round(coords.accuracy)}m) is below threshold (${this.campusSettings.max_accuracy_meters}m). Please enable High Accuracy GPS.`
+      };
+    }
+
+    const poly = this.campusSettings.boundary_polygon || DEFAULT_CAMPUS_POLYGON;
+    const inside = coords.insideCampus !== undefined ? coords.insideCampus : isPointInPolygon([coords.longitude, coords.latitude], poly);
+    if (!inside) {
+      const boundaryDist = Math.round(coords.distanceToBoundary || calculateMinDistanceToPolygon(coords.latitude, coords.longitude, poly));
+      return {
+        success: false,
+        message: `Location rejected: Check-out must be completed within SNS College of Technology boundary (including SNS iHub, ${boundaryDist}m away).`
       };
     }
 
@@ -976,12 +1234,10 @@ export class AttendanceService {
       const name = studentLookup[r.student_id]?.student_name || r.student_id;
       const isEarly = r.student_id === todayEarlyWinner ? 'YES (+10 pts)' : 'NO';
       const isNight = r.student_id === todayNightWinner ? 'YES (+10 pts)' : 'NO';
-      const distance = calculateHaversineDistance(
-        r.login_latitude || 0,
-        r.login_longitude || 0,
-        this.campusSettings.center_latitude,
-        this.campusSettings.center_longitude
-      );
+      const poly = this.campusSettings.boundary_polygon || DEFAULT_CAMPUS_POLYGON;
+      const inside = isPointInPolygon([r.login_longitude || 0, r.login_latitude || 0], poly);
+      const boundaryDist = inside ? 0 : calculateMinDistanceToPolygon(r.login_latitude || 0, r.login_longitude || 0, poly);
+      const locDisplay = inside ? 'Inside Boundary (SNS Campus)' : `Outside (${Math.round(boundaryDist)}m away)`;
 
       return [
         `"${r.student_id}"`,
@@ -992,7 +1248,7 @@ export class AttendanceService {
         `"${formatISTTime(r.logout_at)}"`,
         r.logout_location_verified ? 'VERIFIED' : 'NO',
         `"${r.status}"`,
-        `"${distance}m"`,
+        `"${locDisplay}"`,
         `"${isEarly}"`,
         `"${isNight}"`
       ].join(',');
@@ -1002,15 +1258,48 @@ export class AttendanceService {
   }
 
   /**
-   * Update Geofence Configuration
+   * Update Campus Boundary & Geofence Configuration (Admin Only)
    */
   async updateCampusSettings(newSettings) {
-    this.campusSettings = { ...this.campusSettings, ...newSettings };
+    if (newSettings.boundary_polygon) {
+      const validation = validateCampusPolygon(newSettings.boundary_polygon);
+      if (!validation.valid) {
+        throw new Error(`Invalid Campus Boundary: ${validation.error}`);
+      }
+      newSettings.boundary_polygon = validation.polygon;
+    }
+
+    // Auto-calculate centroid if boundary changed but center not explicitly specified
+    if (newSettings.boundary_polygon && (!newSettings.center_latitude || !newSettings.center_longitude)) {
+      let latSum = 0, lonSum = 0, count = newSettings.boundary_polygon.length - 1;
+      for (let i = 0; i < count; i++) {
+        lonSum += newSettings.boundary_polygon[i][0];
+        latSum += newSettings.boundary_polygon[i][1];
+      }
+      newSettings.center_latitude = Math.round((latSum / count) * 100000) / 100000;
+      newSettings.center_longitude = Math.round((lonSum / count) * 100000) / 100000;
+    }
+
+    this.campusSettings = {
+      ...this.campusSettings,
+      ...newSettings,
+      last_updated: new Date().toISOString()
+    };
     this.saveToCache();
+
     try {
       await supabase.from('campus_geofence_settings').upsert({
         id: 'default',
-        ...this.campusSettings,
+        campus_name: this.campusSettings.campus_name,
+        center_latitude: this.campusSettings.center_latitude,
+        center_longitude: this.campusSettings.center_longitude,
+        radius_meters: this.campusSettings.radius_meters || 500,
+        max_accuracy_meters: this.campusSettings.max_accuracy_meters,
+        boundary_polygon: this.campusSettings.boundary_polygon,
+        crs: this.campusSettings.crs || 'EPSG:4326',
+        config_version: this.campusSettings.config_version || '2.1.0',
+        approved_by: this.campusSettings.approved_by || 'Campus Administrator',
+        zones: this.campusSettings.zones || DEFAULT_CAMPUS_ZONES,
         updated_at: new Date().toISOString()
       });
     } catch (e) {

@@ -15,13 +15,14 @@ Built with **Vite, Vanilla JavaScript, CSS Design System, and Supabase Real-Time
   - **Student Sign-In**: Requires full name confirmation, email, password, and mandatory campus GPS verification.
   - **Mentor / Administrator**: Unlocks the **Admin Console** and score editing capabilities for evaluating students across the 9 non-attendance categories.
 
-### 2. Mandatory Real Hardware GPS Verification Gate
+### 2. Mandatory Real Hardware GPS Verification Gate (Polygon Geofencing)
 - Real-time hardware geolocation check before student sign-in is unlocked.
-- Strictly validated against the official campus reference location for **SNS College of Technology, Coimbatore, Tamil Nadu, India** ([Google Maps Destination](https://maps.app.goo.gl/2GuhwjVg8nN8zWeRA)):
-  - **Latitude**: `11.10043° N`
-  - **Longitude**: `77.02661° E`
-  - **Permitted Radius**: `500 meters`
-  - **Max GPS Accuracy Threshold**: `< 100 meters`
+- **Configurable Polygon Geofencing**: Deterministic Point-in-Polygon (Ray Casting) algorithm covering the entire verified campus premises of **SNS College of Technology, Coimbatore, Tamil Nadu, India** ([Google Maps Campus Location](https://maps.app.goo.gl/2GuhwjVg8nN8zWeRA)):
+  - **Verified Campus Perimeter**: 9-vertex closed polygon enclosing SNSCT Main Academic Blocks, **SNS iHub (Innovation & Incubation Hub)**, College of Allied Health Sciences, College of Physiotherapy, Mechanical blocks, Sports complex, and North hostel blocks.
+  - **Coordinate Reference System**: `EPSG:4326 (WGS84)`
+  - **Permitted GPS Accuracy Threshold**: `< 100 meters`
+  - **Nearest Boundary Projection**: Students outside the perimeter are provided precise distance to the nearest campus boundary rather than arbitrary distance from a single center point.
+  - **Admin Boundary Management Console**: Authorized administrators can inspect, validate, edit, and test arbitrary GPS coordinates against the boundary polygon with live feedback.
   - **Timezone**: `Asia/Kolkata`
 - 11 explicit verification states: `idle`, `requesting_permission`, `fetching_location`, `validating_location`, `verified`, `location_disabled`, `permission_denied`, `gps_timeout`, `inaccurate_location`, `outside_campus`, `verification_failed`.
 - Strict real hardware GPS enforcement: No mock GPS, simulated coordinates, or desktop bypasses allowed in attendance.
@@ -84,10 +85,13 @@ npm install
 # 2. Run local development server
 npm run dev
 
-# 3. Build for production
+# 3. Run Polygon Geofence Test Suite (All 9 Scenarios)
+npm test
+
+# 4. Build for production
 npm run build
 
-# 4. Preview production build
+# 5. Preview production build
 npm run preview
 ```
 

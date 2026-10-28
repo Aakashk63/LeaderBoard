@@ -136,11 +136,11 @@
           <div class="signin-gps-meta">
             <div class="signin-gps-meta-item">
               <span>Approved Campus:</span>
-              <strong>SNS College of Technology, Coimbatore</strong>
+              <strong id="textSignInApprovedCampus">SNS College of Technology, Coimbatore</strong>
             </div>
             <div class="signin-gps-meta-item">
-              <span>Permitted Boundary:</span>
-              <strong>500 meters (11.10043° N, 77.02661° E)</strong>
+              <span>Campus Geofence:</span>
+              <strong id="textSignInBoundaryType">Polygon Perimeter (Incl. SNS iHub)</strong>
             </div>
             <div class="signin-gps-meta-item">
               <span>Distance to Campus:</span>
@@ -544,12 +544,16 @@
               </div>
               <div class="geofence-meta-list">
                 <div class="geofence-meta-item">
-                  <span>Campus GPS Coordinates:</span>
-                  <strong id="attCampusCoordsDisplay">11.10043° N, 77.02661° E</strong>
+                  <span>Campus Perimeter:</span>
+                  <strong id="attCampusCoordsDisplay">Verified Polygon (EPSG:4326)</strong>
                 </div>
                 <div class="geofence-meta-item">
-                  <span>Permitted Geofence Radius:</span>
-                  <strong id="attCampusRadiusDisplay">500 meters</strong>
+                  <span>Approved Scope:</span>
+                  <strong id="attCampusRadiusDisplay">Entire Campus & SNS iHub</strong>
+                </div>
+                <div class="geofence-meta-item">
+                  <span>Campus Facility Zone:</span>
+                  <strong id="attCampusFacilityDisplay" style="color: var(--accent-lime);">SNS iHub / Academic Blocks</strong>
                 </div>
                 <div class="geofence-meta-item">
                   <span>Your Current Distance:</span>
@@ -815,29 +819,87 @@
         </div>
 
         <form id="adminGeofenceForm" class="geofence-config-grid">
-          <div class="geofence-input-field">
-            <label for="cfgCampusName">Campus Name</label>
+          <div class="geofence-input-field" style="grid-column: 1 / -1;">
+            <label for="cfgCampusName">Approved Campus Name</label>
             <input type="text" id="cfgCampusName" value="SNS College of Technology, Coimbatore" required>
           </div>
           <div class="geofence-input-field">
-            <label for="cfgLatitude">Center Latitude</label>
+            <label for="cfgCrs">Coordinate Reference System</label>
+            <input type="text" id="cfgCrs" value="EPSG:4326 (WGS84)" readonly style="opacity: 0.85;">
+          </div>
+          <div class="geofence-input-field">
+            <label for="cfgVersion">Configuration Version</label>
+            <input type="text" id="cfgVersion" value="2.1.0" required>
+          </div>
+          <div class="geofence-input-field">
+            <label for="cfgApprovedBy">Authorized Administrator</label>
+            <input type="text" id="cfgApprovedBy" value="Aakash (Administrator)" required>
+          </div>
+          <div class="geofence-input-field">
+            <label for="cfgAccuracy">Max GPS Accuracy Threshold (meters)</label>
+            <input type="number" id="cfgAccuracy" value="100" min="10" max="500" required>
+          </div>
+          <div class="geofence-input-field">
+            <label for="cfgLatitude">Centroid Latitude (Reference)</label>
             <input type="number" step="0.000001" id="cfgLatitude" value="11.10043" required>
           </div>
           <div class="geofence-input-field">
-            <label for="cfgLongitude">Center Longitude</label>
+            <label for="cfgLongitude">Centroid Longitude (Reference)</label>
             <input type="number" step="0.000001" id="cfgLongitude" value="77.02661" required>
           </div>
           <div class="geofence-input-field">
-            <label for="cfgRadius">Geofence Radius (meters)</label>
+            <label for="cfgRadius">Fallback Radius (meters)</label>
             <input type="number" id="cfgRadius" value="500" min="50" max="5000" required>
           </div>
-          <div class="geofence-input-field">
-            <label for="cfgAccuracy">Max Accuracy Threshold (meters)</label>
-            <input type="number" id="cfgAccuracy" value="100" min="10" max="1000" required>
+
+          <!-- Verified Boundary Polygon Coordinate Editor -->
+          <div class="geofence-input-field" style="grid-column: 1 / -1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
+              <label for="cfgPolygon" style="font-weight: 700; color: var(--accent-purple-light);">
+                Verified Campus Boundary Polygon Coordinates [Longitude, Latitude]
+              </label>
+              <div style="display: flex; gap: 0.5rem;">
+                <button type="button" id="btnLoadDefaultPolygon" class="admin-btn" style="padding: 0.3rem 0.65rem; font-size: 0.72rem;">
+                  Load Default SNS Campus Boundary (Incl. SNS iHub)
+                </button>
+                <button type="button" id="btnValidatePolygon" class="admin-btn" style="padding: 0.3rem 0.65rem; font-size: 0.72rem; border-color: var(--accent-lime); color: var(--accent-lime);">
+                  Validate Polygon
+                </button>
+              </div>
+            </div>
+            <textarea id="cfgPolygon" rows="8" style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.65rem; width: 100%; resize: vertical;" spellcheck="false" required></textarea>
+            <div id="polygonValidationMsg" style="font-size: 0.74rem; color: var(--accent-lime); margin-top: 0.35rem;">
+              Polygon Status: Active verified 9-vertex campus perimeter (Enclosing SNSCT Academic Blocks, SNS iHub Innovation Labs, Allied Health, Sports Ground & Hostels).
+            </div>
           </div>
-          <div style="display: flex; align-items: flex-end;">
-            <button type="submit" class="admin-btn admin-btn-primary" style="height: 38px; width: 100%; justify-content: center;">
-              Save Geofence Settings
+
+          <!-- Test Coordinate Checker -->
+          <div class="geofence-input-field" style="grid-column: 1 / -1; background: rgba(255, 255, 255, 0.02); border: 1px dashed var(--border-color); border-radius: 8px; padding: 0.75rem;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+              Live Point-in-Polygon Coordinate Inspector
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.6rem; align-items: flex-end;">
+              <div>
+                <label style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Test Latitude</label>
+                <input type="number" step="0.000001" id="inputTestLat" value="11.10125" placeholder="e.g. 11.10125 (SNS iHub)" style="width: 100%; height: 34px;">
+              </div>
+              <div>
+                <label style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Test Longitude</label>
+                <input type="number" step="0.000001" id="inputTestLng" value="77.02685" placeholder="e.g. 77.02685" style="width: 100%; height: 34px;">
+              </div>
+              <button type="button" id="btnTestCoordinate" class="admin-btn admin-btn-primary" style="height: 34px;">
+                Test Location
+              </button>
+            </div>
+            <div id="testCoordinateResult" style="margin-top: 0.5rem; font-size: 0.75rem; font-weight: 600; color: var(--accent-lime);">
+              Ready to test coordinates against configured polygon boundary.
+            </div>
+          </div>
+
+          <div style="grid-column: 1 / -1; display: flex; justify-content: flex-end; margin-top: 0.5rem;">
+            <button type="submit" class="admin-btn admin-btn-primary" style="height: 40px; padding: 0 1.5rem; font-size: 0.85rem;">
+              Save & Publish Geofence Configuration
             </button>
           </div>
         </form>

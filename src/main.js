@@ -12,7 +12,14 @@ import {
   formatISTDate,
   isStrictlyAfter6PMIST,
   getTodayISTDateString,
-  calculateHaversineDistance
+  calculateHaversineDistance,
+  DEFAULT_CAMPUS_POLYGON,
+  DEFAULT_CAMPUS_ZONES,
+  DEFAULT_CAMPUS_SETTINGS,
+  isPointInPolygon,
+  calculateMinDistanceToPolygon,
+  validateCampusPolygon,
+  findNearestCampusZone
 } from './data/attendanceDatabase.js';
 import { authService, STUDENT_ACCOUNTS, MENTOR_ACCOUNTS } from './data/authService.js';
 import { appQueryCache } from './data/cacheEngine.js';
@@ -129,6 +136,7 @@ const elements = {
   attCampusNameDisplay: document.getElementById('attCampusNameDisplay'),
   attCampusCoordsDisplay: document.getElementById('attCampusCoordsDisplay'),
   attCampusRadiusDisplay: document.getElementById('attCampusRadiusDisplay'),
+  attCampusFacilityDisplay: document.getElementById('attCampusFacilityDisplay'),
   attLiveDistanceMeters: document.getElementById('attLiveDistanceMeters'),
   attLiveAccuracyMeters: document.getElementById('attLiveAccuracyMeters'),
 
@@ -164,10 +172,21 @@ const elements = {
   adminAttendanceTableBody: document.getElementById('adminAttendanceTableBody'),
   adminGeofenceForm: document.getElementById('adminGeofenceForm'),
   cfgCampusName: document.getElementById('cfgCampusName'),
+  cfgCrs: document.getElementById('cfgCrs'),
+  cfgVersion: document.getElementById('cfgVersion'),
+  cfgApprovedBy: document.getElementById('cfgApprovedBy'),
   cfgLatitude: document.getElementById('cfgLatitude'),
   cfgLongitude: document.getElementById('cfgLongitude'),
   cfgRadius: document.getElementById('cfgRadius'),
   cfgAccuracy: document.getElementById('cfgAccuracy'),
+  cfgPolygon: document.getElementById('cfgPolygon'),
+  btnLoadDefaultPolygon: document.getElementById('btnLoadDefaultPolygon'),
+  btnValidatePolygon: document.getElementById('btnValidatePolygon'),
+  polygonValidationMsg: document.getElementById('polygonValidationMsg'),
+  inputTestLat: document.getElementById('inputTestLat'),
+  inputTestLng: document.getElementById('inputTestLng'),
+  btnTestCoordinate: document.getElementById('btnTestCoordinate'),
+  testCoordinateResult: document.getElementById('testCoordinateResult'),
 
   // Student Detail & Score Editor Modal
   studentDetailModal: document.getElementById('studentDetailModal'),
@@ -948,14 +967,15 @@ function updateLocationStateUI(state, details = {}) {
       stateClass = 'state-checking';
       title = 'Validating Campus Boundary...';
       accText = 'Evaluating Geofence...';
-      guidanceText = 'Calculating distance between current coordinates and SNS College of Technology perimeter...';
+      guidanceText = 'Evaluating device GPS against approved SNS College of Technology polygon geofence (including SNS iHub)...';
       break;
 
     case LOCATION_STATES.VERIFIED:
       stateClass = 'state-verified';
       title = 'Location Verified';
       accText = `${Math.round(details.accuracy || 12)}m Accuracy`;
-      guidanceText = `Success! Your GPS position is verified inside the SNS College of Technology campus boundary (${Math.round(details.distance || 0)}m from center). You are eligible to complete check-in.`;
+      const zoneLabel = details.nearestZone?.name ? ` (${details.nearestZone.name})` : '';
+      guidanceText = `Success! Your GPS position is verified inside the approved SNS College of Technology campus premises${zoneLabel}. You are eligible to complete check-in.`;
       isVerified = true;
       break;
 
@@ -995,7 +1015,8 @@ function updateLocationStateUI(state, details = {}) {
       stateClass = 'state-outside';
       title = 'Outside Campus Boundary';
       accText = `${Math.round(details.accuracy || 0)}m Accuracy`;
-      guidanceText = `Location rejected: You are ${Math.round(details.distance || 0)}m away from SNS College of Technology. Maximum approved boundary is ${attendanceService.campusSettings.radius_meters}m. You must be physically on campus to mark attendance.`;
+      const boundaryDist = Math.round(details.distanceToBoundary !== undefined ? details.distanceToBoundary : (details.distance || 0));
+      guidanceText = `Location rejected: You are ${boundaryDist}m away from the approved SNS College of Technology boundary (including SNS iHub). You must be physically inside campus premises to mark attendance.`;
       showRetry = true;
       break;
 
@@ -1031,9 +1052,14 @@ function updateLocationStateUI(state, details = {}) {
     } else if (state === LOCATION_STATES.PERMISSION_DENIED) {
       elements.textSignInLiveDistance.textContent = 'Permission denied';
       elements.textSignInLiveDistance.style.color = '#f87171';
+    } else if (isVerified) {
+      const zoneName = details.nearestZone?.name || 'SNS Campus';
+      elements.textSignInLiveDistance.textContent = `Inside Boundary (${zoneName})`;
+      elements.textSignInLiveDistance.style.color = 'var(--accent-lime)';
     } else if (details.distance !== undefined) {
-      elements.textSignInLiveDistance.textContent = `${Math.round(details.distance)}m (${isVerified ? 'Inside' : 'Outside'})`;
-      elements.textSignInLiveDistance.style.color = isVerified ? 'var(--accent-lime)' : '#f87171';
+      const boundaryDist = Math.round(details.distanceToBoundary !== undefined ? details.distanceToBoundary : details.distance);
+      elements.textSignInLiveDistance.textContent = `${boundaryDist}m Outside Boundary`;
+      elements.textSignInLiveDistance.style.color = '#f87171';
     } else {
       elements.textSignInLiveDistance.textContent = 'Not verified yet';
       elements.textSignInLiveDistance.style.color = 'var(--text-muted)';
@@ -1099,16 +1125,24 @@ function renderAttendanceDashboard() {
 
   // 2. Geofence Info
   if (elements.attCampusNameDisplay) elements.attCampusNameDisplay.textContent = settings.campus_name;
-  if (elements.attCampusCoordsDisplay) elements.attCampusCoordsDisplay.textContent = `${settings.center_latitude}° N, ${settings.center_longitude}° E`;
-  if (elements.attCampusRadiusDisplay) elements.attCampusRadiusDisplay.textContent = `${settings.radius_meters} meters`;
+  const polyLength = settings.boundary_polygon?.length || 9;
+  if (elements.attCampusCoordsDisplay) elements.attCampusCoordsDisplay.textContent = `Verified Polygon (${settings.crs || 'EPSG:4326'} • ${polyLength} Vertices)`;
+  if (elements.attCampusRadiusDisplay) elements.attCampusRadiusDisplay.textContent = `Entire Campus (Incl. SNS iHub)`;
+  if (elements.attCampusFacilityDisplay) {
+    const loc = attendanceService.lastKnownCoords;
+    elements.attCampusFacilityDisplay.textContent = loc?.nearestZone?.name || 'SNS iHub / Main Academic Block';
+  }
 
   // 3. Update Location State Visuals
   updateLocationStateUI(attendanceService.locationVerificationState, attendanceService.lastVerificationResult);
 
   const loc = attendanceService.lastKnownCoords;
   if (loc && elements.attLiveDistanceMeters) {
-    const isInside = loc.distance <= settings.radius_meters;
-    elements.attLiveDistanceMeters.textContent = `${Math.round(loc.distance)} meters (${isInside ? 'Within Boundary' : 'Outside Geofence'})`;
+    const isInside = !!loc.insideCampus;
+    const boundaryDist = Math.round(loc.distanceToBoundary !== undefined ? loc.distanceToBoundary : (loc.distance || 0));
+    elements.attLiveDistanceMeters.textContent = isInside
+      ? `0 meters (Inside Campus Boundary • ${loc.nearestZone?.name || 'SNS iHub'})`
+      : `${boundaryDist} meters (Outside Campus Boundary)`;
     elements.attLiveDistanceMeters.style.color = isInside ? 'var(--accent-lime)' : '#f87171';
     elements.attLiveAccuracyMeters.textContent = `${Math.round(loc.accuracy)} meters (${loc.accuracy <= settings.max_accuracy_meters ? 'Acceptable' : 'Too High'})`;
   }
@@ -1240,12 +1274,10 @@ function renderAdminAttendanceDashboard() {
       if (isNight) awardBadges += `<span class="award-badge-pill night">Night Owl (+10)</span>`;
       if (!awardBadges) awardBadges = '<span style="color: var(--text-muted);">None</span>';
 
-      const distance = rec ? calculateHaversineDistance(
-        rec.login_latitude || 0,
-        rec.login_longitude || 0,
-        settings.center_latitude,
-        settings.center_longitude
-      ) : null;
+      const poly = settings.boundary_polygon || DEFAULT_CAMPUS_POLYGON;
+      const inside = rec ? isPointInPolygon([rec.login_longitude || 0, rec.login_latitude || 0], poly) : false;
+      const boundaryDist = rec ? (inside ? 0 : calculateMinDistanceToPolygon(rec.login_latitude || 0, rec.login_longitude || 0, poly)) : null;
+      const distDisplay = boundaryDist !== null ? (inside ? '<span style="color: var(--accent-lime); font-weight: 600;">Inside Campus</span>' : `<span style="color: #f87171;">${Math.round(boundaryDist)}m outside</span>`) : '--';
 
       return `
         <tr>
@@ -1264,12 +1296,25 @@ function renderAdminAttendanceDashboard() {
           <td>${rec?.login_location_verified ? '<span class="geofence-verify-chip verified">Verified</span>' : '<span style="color: var(--text-muted);">--</span>'}</td>
           <td>${rec?.logout_at ? formatISTTime(rec.logout_at) : '<span style="color: var(--text-muted);">Pending</span>'}</td>
           <td>${rec?.logout_location_verified ? '<span class="geofence-verify-chip verified">Verified</span>' : '<span style="color: var(--text-muted);">--</span>'}</td>
-          <td>${distance !== null ? `${distance}m` : '--'}</td>
+          <td>${distDisplay}</td>
           <td>${awardBadges}</td>
           <td><span style="text-transform: capitalize; font-weight: 600; color: ${rec?.status === 'completed' ? '#34d399' : rec?.status === 'checked_in' ? 'var(--accent-lime)' : 'var(--text-muted)'};">${rec?.status || 'absent'}</span></td>
         </tr>
       `;
     }).join('');
+  }
+
+  // Populate Admin Geofence Settings Inputs
+  if (elements.cfgCampusName) elements.cfgCampusName.value = settings.campus_name || '';
+  if (elements.cfgCrs) elements.cfgCrs.value = settings.crs || 'EPSG:4326 (WGS84)';
+  if (elements.cfgVersion) elements.cfgVersion.value = settings.config_version || '2.1.0';
+  if (elements.cfgApprovedBy) elements.cfgApprovedBy.value = settings.approved_by || 'Aakash (Administrator)';
+  if (elements.cfgAccuracy) elements.cfgAccuracy.value = settings.max_accuracy_meters || 100;
+  if (elements.cfgLatitude) elements.cfgLatitude.value = settings.center_latitude || 11.10043;
+  if (elements.cfgLongitude) elements.cfgLongitude.value = settings.center_longitude || 77.02661;
+  if (elements.cfgRadius) elements.cfgRadius.value = settings.radius_meters || 500;
+  if (elements.cfgPolygon && !elements.cfgPolygon.dataset.userEdited) {
+    elements.cfgPolygon.value = JSON.stringify(settings.boundary_polygon || DEFAULT_CAMPUS_POLYGON, null, 2);
   }
 }
 
@@ -1690,19 +1735,113 @@ function setupEventListeners() {
     });
   }
 
+  if (elements.cfgPolygon) {
+    elements.cfgPolygon.addEventListener('input', () => {
+      elements.cfgPolygon.dataset.userEdited = 'true';
+    });
+  }
+
+  if (elements.btnLoadDefaultPolygon) {
+    elements.btnLoadDefaultPolygon.addEventListener('click', () => {
+      if (elements.cfgPolygon) {
+        elements.cfgPolygon.value = JSON.stringify(DEFAULT_CAMPUS_POLYGON, null, 2);
+        elements.cfgPolygon.dataset.userEdited = 'true';
+      }
+      if (elements.polygonValidationMsg) {
+        elements.polygonValidationMsg.textContent = 'Default SNS Campus Perimeter Loaded (Incl. SNS iHub, 9 Vertices). Click "Save & Publish" to apply.';
+        elements.polygonValidationMsg.style.color = 'var(--accent-lime)';
+      }
+    });
+  }
+
+  if (elements.btnValidatePolygon) {
+    elements.btnValidatePolygon.addEventListener('click', () => {
+      if (!elements.cfgPolygon) return;
+      try {
+        const parsed = JSON.parse(elements.cfgPolygon.value);
+        const val = validateCampusPolygon(parsed);
+        if (val.valid) {
+          elements.polygonValidationMsg.textContent = `Valid Closed Polygon Ring: ${val.polygon.length} vertices. Encloses entire SNS College of Technology premises, SNS iHub, Allied Health, Sports Ground & Hostels.`;
+          elements.polygonValidationMsg.style.color = 'var(--accent-lime)';
+        } else {
+          elements.polygonValidationMsg.textContent = `Validation Error: ${val.error}`;
+          elements.polygonValidationMsg.style.color = '#f87171';
+        }
+      } catch (err) {
+        elements.polygonValidationMsg.textContent = `JSON Parse Error: ${err.message}`;
+        elements.polygonValidationMsg.style.color = '#f87171';
+      }
+    });
+  }
+
+  if (elements.btnTestCoordinate) {
+    elements.btnTestCoordinate.addEventListener('click', () => {
+      const lat = parseFloat(elements.inputTestLat?.value);
+      const lng = parseFloat(elements.inputTestLng?.value);
+      if (!isFinite(lat) || !isFinite(lng)) {
+        if (elements.testCoordinateResult) {
+          elements.testCoordinateResult.textContent = 'Please enter valid numerical latitude and longitude.';
+          elements.testCoordinateResult.style.color = '#f87171';
+        }
+        return;
+      }
+      try {
+        const poly = elements.cfgPolygon ? JSON.parse(elements.cfgPolygon.value) : (attendanceService.campusSettings.boundary_polygon || DEFAULT_CAMPUS_POLYGON);
+        const inside = isPointInPolygon([lng, lat], poly);
+        const dist = inside ? 0 : calculateMinDistanceToPolygon(lat, lng, poly);
+        const nearest = findNearestCampusZone(lat, lng, attendanceService.campusSettings.zones);
+        if (inside) {
+          elements.testCoordinateResult.textContent = `PASSED: (${lat}, ${lng}) is INSIDE the approved campus boundary! Closest to ${nearest.name}. Distance to perimeter: 0m.`;
+          elements.testCoordinateResult.style.color = 'var(--accent-lime)';
+        } else {
+          elements.testCoordinateResult.textContent = `REJECTED: (${lat}, ${lng}) is OUTSIDE the campus perimeter! Distance to nearest boundary: ${Math.round(dist)} meters.`;
+          elements.testCoordinateResult.style.color = '#f87171';
+        }
+      } catch (e) {
+        if (elements.testCoordinateResult) {
+          elements.testCoordinateResult.textContent = `Error inspecting coordinates: ${e.message}`;
+          elements.testCoordinateResult.style.color = '#f87171';
+        }
+      }
+    });
+  }
+
   if (elements.adminGeofenceForm) {
-    elements.adminGeofenceForm.addEventListener('submit', (e) => {
+    elements.adminGeofenceForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const newSettings = {
-        campus_name: elements.cfgCampusName.value,
-        center_latitude: parseFloat(elements.cfgLatitude.value),
-        center_longitude: parseFloat(elements.cfgLongitude.value),
-        radius_meters: parseInt(elements.cfgRadius.value, 10),
-        max_accuracy_meters: parseInt(elements.cfgAccuracy.value, 10)
-      };
-      attendanceService.updateCampusSettings(newSettings);
-      alert('Geofence settings updated successfully!');
-      renderAttendanceDashboard();
+      try {
+        let polygonToSave = attendanceService.campusSettings.boundary_polygon || DEFAULT_CAMPUS_POLYGON;
+        if (elements.cfgPolygon && elements.cfgPolygon.value.trim()) {
+          const parsed = JSON.parse(elements.cfgPolygon.value);
+          const val = validateCampusPolygon(parsed);
+          if (!val.valid) {
+            alert(`Cannot Save: Invalid Polygon Boundary (${val.error}). Please verify the polygon format.`);
+            return;
+          }
+          polygonToSave = val.polygon;
+        }
+
+        const newSettings = {
+          campus_name: elements.cfgCampusName.value,
+          crs: elements.cfgCrs?.value || 'EPSG:4326',
+          config_version: elements.cfgVersion?.value || '2.1.0',
+          approved_by: elements.cfgApprovedBy?.value || 'Campus Administrator',
+          center_latitude: parseFloat(elements.cfgLatitude.value),
+          center_longitude: parseFloat(elements.cfgLongitude.value),
+          radius_meters: parseInt(elements.cfgRadius.value, 10),
+          max_accuracy_meters: parseInt(elements.cfgAccuracy.value, 10),
+          boundary_polygon: polygonToSave,
+          last_updated: new Date().toISOString()
+        };
+
+        await attendanceService.updateCampusSettings(newSettings);
+        if (elements.cfgPolygon) elements.cfgPolygon.dataset.userEdited = '';
+        alert('Campus Polygon Geofence successfully saved and published! Covers all campus blocks including SNS iHub.');
+        renderAttendanceDashboard();
+        renderAdminAttendanceDashboard();
+      } catch (err) {
+        alert(`Error saving geofence settings: ${err.message}`);
+      }
     });
   }
 }
