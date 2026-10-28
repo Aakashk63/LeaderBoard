@@ -23,7 +23,8 @@ export const INITIAL_STUDENTS = [
   { id: 'std-17', name: 'Dharsiga' },
   { id: 'std-18', name: 'Aishwarya' },
   { id: 'std-19', name: 'Ashok Britto.P' },
-  { id: 'std-20', name: 'S.KEERTHANA' }
+  { id: 'std-20', name: 'S.KEERTHANA' },
+  { id: 'std-dummy', name: 'Dummy Student', is_test_account: true }
 ];
 
 export const SCORING_CATEGORIES = [

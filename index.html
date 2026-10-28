@@ -140,7 +140,7 @@
             </div>
             <div class="signin-gps-meta-item">
               <span>Permitted Boundary:</span>
-              <strong>500 meters (11.0827° N, 77.0185° E)</strong>
+              <strong>500 meters (11.10043° N, 77.02661° E)</strong>
             </div>
             <div class="signin-gps-meta-item">
               <span>Distance to Campus:</span>
@@ -157,20 +157,15 @@
             Click <strong>"Check My Location"</strong> below. Location must be verified within the SNS College campus before Sign-In becomes available.
           </div>
 
-          <!-- Prominent Check Location Button -->
-          <button type="button" id="btnSignInCheckLocation" class="btn-check-location">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
-            <span>Check My Location</span>
-          </button>
-
-          <!-- Toggle Simulated / Real Device GPS -->
-          <div class="gps-mode-toggle-wrap">
-            <div style="display: flex; flex-direction: column;">
-              <span class="gps-mode-label">Location Signal Source</span>
-              <span style="font-size: 0.72rem; color: var(--text-muted);" id="textSignInGpsModeDesc">Simulated campus GPS active (for desktop testing anywhere)</span>
-            </div>
-            <button type="button" id="btnSignInToggleGpsMode" class="gps-mode-toggle-btn" title="Toggle between Device Real GPS and Simulated Campus GPS">
-              Simulated (SNSCT)
+          <!-- Location Action Buttons: Check My Location & Retry Location -->
+          <div style="display: flex; gap: 0.6rem; width: 100%;">
+            <button type="button" id="btnSignInCheckLocation" class="btn-check-location" style="flex: 1;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+              <span id="textCheckLocationBtn">Check My Location</span>
+            </button>
+            <button type="button" id="btnSignInRetryLocation" class="btn-check-location" style="display: none; background: rgba(245, 158, 11, 0.15); border-color: #f59e0b; color: #fbbf24; flex: 1;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              <span>Retry Location</span>
             </button>
           </div>
         </div>
@@ -550,7 +545,7 @@
               <div class="geofence-meta-list">
                 <div class="geofence-meta-item">
                   <span>Campus GPS Coordinates:</span>
-                  <strong id="attCampusCoordsDisplay">11.0827° N, 77.0185° E</strong>
+                  <strong id="attCampusCoordsDisplay">11.10043° N, 77.02661° E</strong>
                 </div>
                 <div class="geofence-meta-item">
                   <span>Permitted Geofence Radius:</span>
@@ -558,24 +553,24 @@
                 </div>
                 <div class="geofence-meta-item">
                   <span>Your Current Distance:</span>
-                  <strong id="attLiveDistanceMeters" style="color: var(--accent-lime);">14 meters (Verified)</strong>
+                  <strong id="attLiveDistanceMeters" style="color: var(--accent-lime);">--</strong>
                 </div>
                 <div class="geofence-meta-item">
                   <span>Reported GPS Accuracy:</span>
-                  <strong id="attLiveAccuracyMeters">12.5 meters (&lt; 100m threshold)</strong>
+                  <strong id="attLiveAccuracyMeters">-- (&lt; 100m threshold)</strong>
                 </div>
               </div>
             </div>
 
-            <!-- GPS Mode Toggle (Testing / Device Real GPS) -->
+            <!-- Real Device GPS Enforcement Notice -->
             <div class="gps-mode-toggle-wrap">
               <div style="display: flex; flex-direction: column;">
-                <span class="gps-mode-label">Location Input Mode</span>
-                <span style="font-size: 0.72rem; color: var(--text-muted);" id="gpsModeDesc">Simulated campus GPS active (works anywhere for testing)</span>
+                <span class="gps-mode-label">GPS Verification Policy</span>
+                <span style="font-size: 0.72rem; color: var(--accent-lime);" id="gpsModeDesc">Strict hardware GPS geofencing active (No simulated coordinates permitted)</span>
               </div>
-              <button type="button" id="btnToggleGpsMode" class="gps-mode-toggle-btn" title="Toggle between Device Real GPS and Simulated Campus GPS">
-                Simulated (SNSCT)
-              </button>
+              <span class="geofence-verify-chip verified" style="font-size: 0.72rem;">
+                <span class="pulse-dot"></span> Real Hardware GPS
+              </span>
             </div>
           </div>
 
@@ -826,11 +821,11 @@
           </div>
           <div class="geofence-input-field">
             <label for="cfgLatitude">Center Latitude</label>
-            <input type="number" step="0.000001" id="cfgLatitude" value="11.0827" required>
+            <input type="number" step="0.000001" id="cfgLatitude" value="11.10043" required>
           </div>
           <div class="geofence-input-field">
             <label for="cfgLongitude">Center Longitude</label>
-            <input type="number" step="0.000001" id="cfgLongitude" value="77.0185" required>
+            <input type="number" step="0.000001" id="cfgLongitude" value="77.02661" required>
           </div>
           <div class="geofence-input-field">
             <label for="cfgRadius">Geofence Radius (meters)</label>

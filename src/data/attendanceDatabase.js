@@ -7,11 +7,11 @@
 import { supabase } from './pilotstudyDatabase.js';
 import { appQueryCache } from './cacheEngine.js';
 
-// SNS College of Technology, Saravanampatti, Coimbatore Coordinates
+// SNS College of Technology, Saravanampatti, Coimbatore Coordinates (Resolved from Google Maps pin)
 export const DEFAULT_CAMPUS_SETTINGS = {
   campus_name: 'SNS College of Technology, Coimbatore',
-  center_latitude: 11.0827,
-  center_longitude: 77.0185,
+  center_latitude: 11.10043,
+  center_longitude: 77.02661,
   radius_meters: 500,
   max_accuracy_meters: 100
 };
@@ -92,13 +92,17 @@ const LOCAL_STORAGE_AWARDS_KEY = 'pilotstudy_daily_awards_v1';
 const LOCAL_STORAGE_SETTINGS_KEY = 'pilotstudy_geofence_v1';
 
 export const LOCATION_STATES = {
-  WAITING: 'Waiting for Location',
-  CHECKING: 'Checking Location...',
-  VERIFIED: 'Location Verified',
-  OUTSIDE: 'Outside Campus Boundary',
-  LOW_ACCURACY: 'GPS Accuracy Too Low',
-  PERMISSION_DENIED: 'Location Permission Denied',
-  UNABLE: 'Unable to Verify Location'
+  IDLE: 'idle',
+  REQUESTING_PERMISSION: 'requesting_permission',
+  FETCHING_LOCATION: 'fetching_location',
+  VALIDATING_LOCATION: 'validating_location',
+  VERIFIED: 'verified',
+  LOCATION_DISABLED: 'location_disabled',
+  PERMISSION_DENIED: 'permission_denied',
+  GPS_TIMEOUT: 'gps_timeout',
+  INACCURATE_LOCATION: 'inaccurate_location',
+  OUTSIDE_CAMPUS: 'outside_campus',
+  VERIFICATION_FAILED: 'verification_failed'
 };
 
 export class AttendanceService {
@@ -106,15 +110,16 @@ export class AttendanceService {
     this.campusSettings = { ...DEFAULT_CAMPUS_SETTINGS };
     this.attendanceRecords = [];
     this.dailyAwards = [];
-    this.locationVerificationState = LOCATION_STATES.WAITING;
+    this.locationVerificationState = LOCATION_STATES.IDLE;
     this.lastVerificationResult = null;
+    this.lastKnownCoords = null;
+    this.verificationExpiresAt = null;
+    this.expirationTimer = null;
     this.listeners = {
       change: [],
       status: [],
       locationStateChange: []
     };
-    this.simulationMode = true; // Enabled for testing anywhere with campus coordinates
-    this.lastKnownCoords = null;
 
     this.loadFromCache();
     this.fetchFromSupabase();
@@ -182,13 +187,13 @@ export class AttendanceService {
         student_id: 'std-4',
         attendance_date: dayBefore,
         login_at: `${dayBefore}T02:45:10.000Z`, // ~08:15 AM IST
-        login_latitude: 11.08272,
-        login_longitude: 77.01851,
+        login_latitude: 11.10045,
+        login_longitude: 77.02662,
         login_accuracy_meters: 12.4,
         login_location_verified: true,
         logout_at: `${dayBefore}T12:30:00.000Z`, // 18:00 IST
-        logout_latitude: 11.08271,
-        logout_longitude: 77.01852,
+        logout_latitude: 11.10042,
+        logout_longitude: 77.02660,
         logout_accuracy_meters: 14.1,
         logout_location_verified: true,
         status: 'completed'
@@ -198,13 +203,13 @@ export class AttendanceService {
         student_id: 'std-1',
         attendance_date: dayBefore,
         login_at: `${dayBefore}T03:10:00.000Z`,
-        login_latitude: 11.08269,
-        login_longitude: 77.01848,
+        login_latitude: 11.10041,
+        login_longitude: 77.02659,
         login_accuracy_meters: 16.0,
         login_location_verified: true,
         logout_at: `${dayBefore}T13:45:22.000Z`, // ~19:15 PM IST (Night Owl Winner)
-        logout_latitude: 11.08270,
-        logout_longitude: 77.01850,
+        logout_latitude: 11.10044,
+        logout_longitude: 77.02663,
         logout_accuracy_meters: 15.2,
         logout_location_verified: true,
         status: 'completed'
@@ -215,13 +220,13 @@ export class AttendanceService {
         student_id: 'std-7',
         attendance_date: yesterday,
         login_at: `${yesterday}T02:30:15.000Z`, // ~08:00 AM IST (Early Bird Winner)
-        login_latitude: 11.08275,
-        login_longitude: 77.01845,
+        login_latitude: 11.10046,
+        login_longitude: 77.02658,
         login_accuracy_meters: 10.5,
         login_location_verified: true,
         logout_at: `${yesterday}T12:45:00.000Z`,
-        logout_latitude: 11.08272,
-        logout_longitude: 77.01849,
+        logout_latitude: 11.10043,
+        logout_longitude: 77.02661,
         logout_accuracy_meters: 11.0,
         logout_location_verified: true,
         status: 'completed'
@@ -231,13 +236,13 @@ export class AttendanceService {
         student_id: 'std-4',
         attendance_date: yesterday,
         login_at: `${yesterday}T03:00:00.000Z`,
-        login_latitude: 11.08270,
-        login_longitude: 77.01855,
+        login_latitude: 11.10040,
+        login_longitude: 77.02664,
         login_accuracy_meters: 13.0,
         login_location_verified: true,
         logout_at: `${yesterday}T14:15:45.000Z`, // ~19:45 PM IST (Night Owl Winner)
-        logout_latitude: 11.08273,
-        logout_longitude: 77.01852,
+        logout_latitude: 11.10044,
+        logout_longitude: 77.02661,
         logout_accuracy_meters: 12.2,
         logout_location_verified: true,
         status: 'completed'
@@ -376,50 +381,54 @@ export class AttendanceService {
   }
 
   /**
-   * Acquire Browser GPS Coordinates with High Accuracy
+   * Acquire Real Browser GPS Coordinates with High Accuracy (No Simulation / No Bypass)
    */
   async getCurrentGPSPosition() {
-    if (this.simulationMode) {
-      // Return simulated coordinates slightly inside campus with small realistic jitter
-      const jitterLat = (Math.random() - 0.5) * 0.0004;
-      const jitterLng = (Math.random() - 0.5) * 0.0004;
-      const simLat = Number(this.campusSettings.center_latitude) + jitterLat;
-      const simLng = Number(this.campusSettings.center_longitude) + jitterLng;
-      const simAccuracy = 12.5;
-      const distance = calculateHaversineDistance(
-        simLat,
-        simLng,
-        this.campusSettings.center_latitude,
-        this.campusSettings.center_longitude
-      );
-
-      this.lastKnownCoords = {
-        latitude: simLat,
-        longitude: simLng,
-        accuracy: simAccuracy,
-        distance,
-        isSimulated: true
-      };
-      return this.lastKnownCoords;
-    }
-
     return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error('Geolocation is not supported by your browser.'));
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        const err = new Error('Geolocation is not supported by your browser.');
+        err.state = LOCATION_STATES.VERIFICATION_FAILED;
+        reject(err);
         return;
       }
 
       const options = {
         enableHighAccuracy: true,
-        timeout: 12000,
-        maximumAge: 0
+        timeout: 15000,
+        maximumAge: 0 // Fresh reading required
       };
 
       navigator.geolocation.getCurrentPosition(
         position => {
+          if (!position || !position.coords) {
+            const err = new Error('Invalid GPS coordinates returned by device.');
+            err.state = LOCATION_STATES.VERIFICATION_FAILED;
+            reject(err);
+            return;
+          }
+
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
           const accuracy = position.coords.accuracy;
+          const timestamp = position.timestamp || Date.now();
+
+          // Reject invalid coordinates
+          if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0)) {
+            const err = new Error('Device returned invalid geographic coordinates (0, 0).');
+            err.state = LOCATION_STATES.VERIFICATION_FAILED;
+            reject(err);
+            return;
+          }
+
+          // Freshness check: reject readings older than 60 seconds
+          const readingAgeMs = Date.now() - timestamp;
+          if (readingAgeMs > 60000) {
+            const err = new Error('Stale GPS reading received. Fresh physical location is required.');
+            err.state = LOCATION_STATES.VERIFICATION_FAILED;
+            reject(err);
+            return;
+          }
+
           const distance = calculateHaversineDistance(
             lat,
             lng,
@@ -427,21 +436,35 @@ export class AttendanceService {
             this.campusSettings.center_longitude
           );
 
-          this.lastKnownCoords = {
+          resolve({
             latitude: lat,
             longitude: lng,
-            accuracy,
+            accuracy: accuracy || 999,
             distance,
-            isSimulated: false
-          };
-          resolve(this.lastKnownCoords);
+            timestamp,
+            verifiedAt: Date.now()
+          });
         },
         error => {
-          let msg = 'Unable to retrieve location.';
-          if (error.code === 1) msg = 'Location access denied. Please grant GPS permission in your browser.';
-          if (error.code === 2) msg = 'Position unavailable. Please check GPS signal.';
-          if (error.code === 3) msg = 'Location request timed out.';
-          reject(new Error(msg));
+          const err = new Error();
+          // GeolocationPositionError codes:
+          // 1: PERMISSION_DENIED
+          // 2: POSITION_UNAVAILABLE
+          // 3: TIMEOUT
+          if (error.code === 1) {
+            err.state = LOCATION_STATES.PERMISSION_DENIED;
+            err.message = 'Browser location permission denied. Please allow location access in your browser or device settings and try again.';
+          } else if (error.code === 2) {
+            err.state = LOCATION_STATES.LOCATION_DISABLED;
+            err.message = 'Your device location is turned off. Enable Location services and try again.';
+          } else if (error.code === 3) {
+            err.state = LOCATION_STATES.GPS_TIMEOUT;
+            err.message = 'GPS acquisition timed out. Ensure your device has an unobstructed sky view or active internet connection, then try again.';
+          } else {
+            err.state = LOCATION_STATES.VERIFICATION_FAILED;
+            err.message = error.message || 'Unable to retrieve location from device GPS.';
+          }
+          reject(err);
         },
         options
       );
@@ -455,60 +478,131 @@ export class AttendanceService {
   }
 
   /**
+   * Reset location verification state (called on account switch, checkout, retry, or expiry)
+   */
+  resetVerification(reason = 'Verification reset') {
+    if (this.expirationTimer) {
+      clearTimeout(this.expirationTimer);
+      this.expirationTimer = null;
+    }
+    this.lastKnownCoords = null;
+    this.verificationExpiresAt = null;
+    this.setLocationState(LOCATION_STATES.IDLE, { message: reason });
+  }
+
+  /**
+   * Schedule automatic expiration of verified state after duration (e.g. 5 minutes)
+   */
+  scheduleVerificationExpiry(durationMs = 300000) {
+    if (this.expirationTimer) {
+      clearTimeout(this.expirationTimer);
+    }
+    this.verificationExpiresAt = Date.now() + durationMs;
+    this.expirationTimer = setTimeout(() => {
+      if (this.locationVerificationState === LOCATION_STATES.VERIFIED) {
+        this.resetVerification('Previous GPS verification expired (5-minute security validity window). Please re-verify.');
+      }
+    }, durationMs);
+  }
+
+  /**
    * Step 2 Location Gate: Check My Location
+   * Real browser Geolocation API with strictly evaluated geofence rules
    */
   async verifyCurrentLocation() {
-    this.setLocationState(LOCATION_STATES.CHECKING, {
-      message: 'Acquiring GPS coordinates and validating campus geofence...'
+    // 1. Reset any prior coordinates and set state to requesting_permission
+    if (this.expirationTimer) {
+      clearTimeout(this.expirationTimer);
+      this.expirationTimer = null;
+    }
+    this.lastKnownCoords = null;
+    this.verificationExpiresAt = null;
+
+    this.setLocationState(LOCATION_STATES.REQUESTING_PERMISSION, {
+      message: 'Requesting permission to access device GPS...'
     });
 
+    // 2. Fetch fresh coordinates
     let coords;
     try {
+      this.setLocationState(LOCATION_STATES.FETCHING_LOCATION, {
+        message: 'Acquiring high-accuracy GPS coordinates from device hardware...'
+      });
+
       coords = await this.getCurrentGPSPosition();
     } catch (err) {
-      if (err.message && err.message.toLowerCase().includes('denied')) {
-        this.setLocationState(LOCATION_STATES.PERMISSION_DENIED, {
-          message: 'Location Permission Denied. Please enable GPS in your browser settings to verify campus attendance.',
-          error: err.message
-        });
-        return { success: false, state: LOCATION_STATES.PERMISSION_DENIED, message: err.message };
-      }
-      this.setLocationState(LOCATION_STATES.UNABLE, {
-        message: 'Unable to Verify Location: ' + err.message,
-        error: err.message
+      const state = err.state || LOCATION_STATES.VERIFICATION_FAILED;
+      const message = err.message || 'GPS acquisition failed.';
+      this.setLocationState(state, {
+        message,
+        error: message
       });
-      return { success: false, state: LOCATION_STATES.UNABLE, message: err.message };
+      return { success: false, state, message };
     }
+
+    // 3. Validating location against campus boundary
+    this.setLocationState(LOCATION_STATES.VALIDATING_LOCATION, {
+      message: 'Validating coordinates against SNS College of Technology geofence perimeter...',
+      coords
+    });
 
     const distance = coords.distance;
     const accuracy = coords.accuracy;
 
+    // Check accuracy threshold
     if (accuracy > this.campusSettings.max_accuracy_meters) {
-      this.setLocationState(LOCATION_STATES.LOW_ACCURACY, {
-        message: `GPS Accuracy Too Low (${Math.round(accuracy)}m). Threshold is ${this.campusSettings.max_accuracy_meters}m. Please improve GPS reception.`,
+      this.setLocationState(LOCATION_STATES.INACCURATE_LOCATION, {
+        message: `GPS Accuracy Too Low (${Math.round(accuracy)}m reported). Must be within ${this.campusSettings.max_accuracy_meters}m. Please improve GPS reception or enable High Accuracy mode.`,
+        accuracy,
+        distance,
+        coords
+      });
+      return {
+        success: false,
+        state: LOCATION_STATES.INACCURATE_LOCATION,
+        message: `GPS Accuracy Too Low (${Math.round(accuracy)}m). Threshold is ${this.campusSettings.max_accuracy_meters}m.`,
         accuracy,
         distance
-      });
-      return { success: false, state: LOCATION_STATES.LOW_ACCURACY, accuracy, distance };
+      };
     }
 
+    // Check distance from campus center
     if (distance > this.campusSettings.radius_meters) {
-      this.setLocationState(LOCATION_STATES.OUTSIDE, {
-        message: `Outside Campus Boundary: You are ${Math.round(distance)}m from SNS College of Technology. Must be within ${this.campusSettings.radius_meters}m boundary.`,
+      this.setLocationState(LOCATION_STATES.OUTSIDE_CAMPUS, {
+        message: `Outside Campus Boundary: You are ${Math.round(distance)}m from SNS College of Technology. Maximum permitted radius is ${this.campusSettings.radius_meters}m.`,
+        accuracy,
+        distance,
+        coords
+      });
+      return {
+        success: false,
+        state: LOCATION_STATES.OUTSIDE_CAMPUS,
+        message: `Outside Campus Boundary: You are ${Math.round(distance)}m from SNS College of Technology.`,
         accuracy,
         distance
-      });
-      return { success: false, state: LOCATION_STATES.OUTSIDE, accuracy, distance };
+      };
     }
 
-    // Success: Location Verified
+    // 4. Verification Successful
+    this.lastKnownCoords = coords;
+    this.scheduleVerificationExpiry(300000); // 5 minutes validity
+
+    const successMsg = `Location Verified! You are within SNS College of Technology campus boundary (${Math.round(distance)}m from center, accuracy: ${Math.round(accuracy)}m).`;
     this.setLocationState(LOCATION_STATES.VERIFIED, {
-      message: `Location Verified! You are within SNS College campus boundary (${Math.round(distance)}m from center).`,
+      message: successMsg,
       accuracy,
       distance,
       coords
     });
-    return { success: true, state: LOCATION_STATES.VERIFIED, accuracy, distance, coords };
+
+    return {
+      success: true,
+      state: LOCATION_STATES.VERIFIED,
+      message: successMsg,
+      accuracy,
+      distance,
+      coords
+    };
   }
 
   /**
@@ -685,6 +779,9 @@ export class AttendanceService {
     this.recalculateDailyAwards(today);
     this.saveToCache();
 
+    // Reset location verification so stale location cannot be reused
+    this.resetVerification('Checked out successfully. Fresh location required for next attendance session.');
+
     // Invalidate query cache for attendance and cohort to ensure fresh synchronization
     appQueryCache.invalidate('student_attendance_all');
     appQueryCache.invalidate('daily_attendance_awards_all');
@@ -705,11 +802,15 @@ export class AttendanceService {
 
   /**
    * Deterministic Daily Awards Calculation (Early Bird & Late Night Owl)
+   * Strictly excludes test/dummy student accounts from official daily awards
    */
   recalculateDailyAwards(dateStr) {
-    // Filter valid verified records for this date
+    // Filter valid verified records for this date (excluding dummy test accounts)
     const dayRecords = this.attendanceRecords.filter(
-      r => r.attendance_date === dateStr && r.login_location_verified
+      r => r.attendance_date === dateStr &&
+           r.login_location_verified &&
+           r.student_id !== 'std-dummy' &&
+           !r.is_test_account
     );
 
     // 1. Early Bird: Earliest valid check-in timestamp of the day

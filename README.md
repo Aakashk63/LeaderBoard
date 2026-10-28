@@ -15,15 +15,21 @@ Built with **Vite, Vanilla JavaScript, CSS Design System, and Supabase Real-Time
   - **Student Sign-In**: Requires full name confirmation, email, password, and mandatory campus GPS verification.
   - **Mentor / Administrator**: Unlocks the **Admin Console** and score editing capabilities for evaluating students across the 9 non-attendance categories.
 
-### 2. Mandatory Campus GPS Verification Gate
-- Real-time geolocation check before student sign-in is unlocked.
-- Verified against the official campus geofence for **SNS College of Technology, Coimbatore, Tamil Nadu, India**:
-  - **Latitude**: `11.0827° N`
-  - **Longitude**: `77.0185° E`
-  - **Radius**: `500 meters`
+### 2. Mandatory Real Hardware GPS Verification Gate
+- Real-time hardware geolocation check before student sign-in is unlocked.
+- Strictly validated against the official campus reference location for **SNS College of Technology, Coimbatore, Tamil Nadu, India** ([Google Maps Destination](https://maps.app.goo.gl/2GuhwjVg8nN8zWeRA)):
+  - **Latitude**: `11.10043° N`
+  - **Longitude**: `77.02661° E`
+  - **Permitted Radius**: `500 meters`
   - **Max GPS Accuracy Threshold**: `< 100 meters`
-- 7 distinct visual states: *Waiting for Location*, *Checking Location...*, *Location Verified*, *Outside Campus Boundary*, *GPS Accuracy Too Low*, *Location Permission Denied*, *Unable to Verify Location*.
-- Includes toggle between **Real Device GPS** and **Simulated Campus GPS** for remote desktop evaluation.
+  - **Timezone**: `Asia/Kolkata`
+- 11 explicit verification states: `idle`, `requesting_permission`, `fetching_location`, `validating_location`, `verified`, `location_disabled`, `permission_denied`, `gps_timeout`, `inaccurate_location`, `outside_campus`, `verification_failed`.
+- Strict real hardware GPS enforcement: No mock GPS, simulated coordinates, or desktop bypasses allowed in attendance.
+- Dedicated **Dummy Student Account for Testing**:
+  - Email: `dummy@gmail.com`
+  - Password: `12345678`
+  - Display Name: `Dummy Student`
+  - Subject to identical strict real GPS geofence checks (no special bypass), identifiable as a test account, and excluded from official student awards.
 
 ### 3. Authoritative Daily Attendance Scoring
 - **Early Bird (+10 pts)**: Awarded automatically to the first valid GPS-verified check-in of the day in `Asia/Kolkata` timezone.

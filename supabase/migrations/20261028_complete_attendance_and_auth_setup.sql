@@ -15,14 +15,15 @@ ADD COLUMN IF NOT EXISTS base_points NUMERIC DEFAULT 0,
 ADD COLUMN IF NOT EXISTS cumulative_points NUMERIC DEFAULT 0,
 ADD COLUMN IF NOT EXISTS attendance_points NUMERIC DEFAULT 0,
 ADD COLUMN IF NOT EXISTS early_bird_count INTEGER DEFAULT 0,
-ADD COLUMN IF NOT EXISTS night_owl_count INTEGER DEFAULT 0;
+ADD COLUMN IF NOT EXISTS night_owl_count INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS is_test_account BOOLEAN DEFAULT false;
 
--- 2. Campus Geofence Settings Table
+-- 2. Campus Geofence Settings Table (SNS College of Technology: 11.10043° N, 77.02661° E)
 CREATE TABLE IF NOT EXISTS public.campus_geofence_settings (
     id TEXT PRIMARY KEY DEFAULT 'default',
     campus_name TEXT NOT NULL DEFAULT 'SNS College of Technology, Coimbatore',
-    center_latitude NUMERIC NOT NULL DEFAULT 11.0827,
-    center_longitude NUMERIC NOT NULL DEFAULT 77.0185,
+    center_latitude NUMERIC NOT NULL DEFAULT 11.10043,
+    center_longitude NUMERIC NOT NULL DEFAULT 77.02661,
     radius_meters NUMERIC NOT NULL DEFAULT 500,
     max_accuracy_meters NUMERIC NOT NULL DEFAULT 100,
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -30,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.campus_geofence_settings (
 
 -- Seed / Update Campus Geofence
 INSERT INTO public.campus_geofence_settings (id, campus_name, center_latitude, center_longitude, radius_meters, max_accuracy_meters)
-VALUES ('default', 'SNS College of Technology, Coimbatore', 11.0827, 77.0185, 500, 100)
+VALUES ('default', 'SNS College of Technology, Coimbatore', 11.10043, 77.02661, 500, 100)
 ON CONFLICT (id) DO UPDATE SET
     campus_name = EXCLUDED.campus_name,
     center_latitude = EXCLUDED.center_latitude,
@@ -160,3 +161,52 @@ ON public.daily_attendance_awards (attendance_date, category);
 ALTER PUBLICATION supabase_realtime ADD TABLE public.student_attendance;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.daily_attendance_awards;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.pilotstudy;
+
+-- 10. Provision Dummy Student Record in pilotstudy
+INSERT INTO public.pilotstudy (id, student_name, total_points, max_points, percentage, category_scores, is_test_account)
+VALUES ('std-dummy', 'Dummy Student', 0, 115, 0, '{}'::jsonb, true)
+ON CONFLICT (id) DO UPDATE SET
+    student_name = EXCLUDED.student_name,
+    is_test_account = true;
+
+-- 11. Provision Dummy Student in auth.users (dummy@gmail.com / 12345678)
+DO $$
+DECLARE
+    dummy_uid UUID;
+BEGIN
+    SELECT id INTO dummy_uid FROM auth.users WHERE email = 'dummy@gmail.com';
+    IF dummy_uid IS NULL THEN
+        dummy_uid := gen_random_uuid();
+        INSERT INTO auth.users (
+            id,
+            instance_id,
+            email,
+            encrypted_password,
+            email_confirmed_at,
+            raw_app_meta_data,
+            raw_user_meta_data,
+            created_at,
+            updated_at,
+            role,
+            aud
+        ) VALUES (
+            dummy_uid,
+            '00000000-0000-0000-0000-000000000000',
+            'dummy@gmail.com',
+            crypt('12345678', gen_salt('bf')),
+            now(),
+            '{"provider":"email","providers":["email"]}',
+            '{"student_id":"std-dummy","student_name":"Dummy Student","role":"student","is_test_account":true}',
+            now(),
+            now(),
+            'authenticated',
+            'authenticated'
+        );
+    END IF;
+
+    INSERT INTO public.student_auth_profiles (id, student_id, email, role)
+    VALUES (dummy_uid, 'std-dummy', 'dummy@gmail.com', 'student')
+    ON CONFLICT (student_id) DO NOTHING;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Notice: Direct auth.users insert skipped in restricted environment.';
+END $$;

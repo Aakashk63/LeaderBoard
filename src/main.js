@@ -62,8 +62,8 @@ const elements = {
   textSignInLiveDistance: document.getElementById('textSignInLiveDistance'),
   textSignInLiveAccuracy: document.getElementById('textSignInLiveAccuracy'),
   btnSignInCheckLocation: document.getElementById('btnSignInCheckLocation'),
-  btnSignInToggleGpsMode: document.getElementById('btnSignInToggleGpsMode'),
-  textSignInGpsModeDesc: document.getElementById('textSignInGpsModeDesc'),
+  btnSignInRetryLocation: document.getElementById('btnSignInRetryLocation'),
+  textCheckLocationBtn: document.getElementById('textCheckLocationBtn'),
   btnStandaloneSignInSubmit: document.getElementById('btnStandaloneSignInSubmit'),
   textSignInButtonLabel: document.getElementById('textSignInButtonLabel'),
   textSignInGateNotice: document.getElementById('textSignInGateNotice'),
@@ -131,8 +131,6 @@ const elements = {
   attCampusRadiusDisplay: document.getElementById('attCampusRadiusDisplay'),
   attLiveDistanceMeters: document.getElementById('attLiveDistanceMeters'),
   attLiveAccuracyMeters: document.getElementById('attLiveAccuracyMeters'),
-  btnToggleGpsMode: document.getElementById('btnToggleGpsMode'),
-  gpsModeDesc: document.getElementById('gpsModeDesc'),
 
   // Clock & Feedback
   istLiveClockTime: document.getElementById('istLiveClockTime'),
@@ -360,7 +358,8 @@ function renderAll() {
 function renderDesktopPodium(rankedList) {
   if (!elements.desktopPodiumRow) return;
 
-  const top3 = rankedList.slice(0, 3);
+  const officialOnly = rankedList.filter(s => !s.is_test_account && s.id !== 'std-dummy');
+  const top3 = officialOnly.slice(0, 3);
   const rank1 = top3[0] || { student_name: 'No student', total_points: 0, cumulative_points: 0, percentage: 0, initials: '--', id: '', avatarBg: '#6c5ce7' };
   const rank2 = top3[1] || { student_name: 'No student', total_points: 0, cumulative_points: 0, percentage: 0, initials: '--', id: '', avatarBg: '#5748cd' };
   const rank3 = top3[2] || { student_name: 'No student', total_points: 0, cumulative_points: 0, percentage: 0, initials: '--', id: '', avatarBg: '#4736b2' };
@@ -482,7 +481,9 @@ function renderDesktopRows(rankedList) {
     let rankDisplayHtml = `<span class="row-rank-number">${student.rank}</span>`;
     let ringClass = '';
 
-    if (student.rank === 1) {
+    if (student.is_test_account || student.id === 'std-dummy') {
+      rankDisplayHtml = `<span class="row-rank-number" style="font-size: 0.65rem; color: #fbbf24; background: rgba(245, 158, 11, 0.15); padding: 0.2rem 0.4rem; border-radius: 4px; font-weight: 800;">TEST</span>`;
+    } else if (student.rank === 1) {
       rankDisplayHtml = `<div class="row-medal-icon gold" title="Rank 1: Gold">${ICONS.medalGold}</div>`;
       ringClass = 'gold-ring';
     } else if (student.rank === 2) {
@@ -496,6 +497,9 @@ function renderDesktopRows(rankedList) {
     // Attendance Badges
     const att = student.attendance_summary || attendanceService.getStudentAttendanceSummary(student.id);
     let badgesHtml = '';
+    if (student.is_test_account || student.id === 'std-dummy') {
+      badgesHtml += `<span style="display: inline-flex; align-items: center; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 12px;">Dev Test Account</span>`;
+    }
     if (att.earlyBirdWinsCount > 0) {
       badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 0.2rem; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 12px;" title="${att.earlyBirdWinsCount}x Early Bird Wins (+${att.earlyBirdPoints} pts)">${att.earlyBirdWinsCount}x Early Bird</span>`;
     }
@@ -584,9 +588,9 @@ function renderQuickAccountsGrid() {
   if (!elements.gridStandaloneQuickAccounts) return;
 
   const studentChips = STUDENT_ACCOUNTS.map(acc => `
-    <button type="button" class="quick-account-chip" data-role="student" data-name="${escapeHtml(acc.student_name)}" data-identifier="${acc.email}" data-password="${acc.defaultPassword}" title="Student: ${escapeHtml(acc.student_name)} (${acc.student_id})">
-      <span class="quick-chip-dot"></span>
-      <span>${escapeHtml(acc.student_name)}</span>
+    <button type="button" class="quick-account-chip ${acc.is_test_account ? 'test-account' : ''}" data-role="student" data-name="${escapeHtml(acc.student_name)}" data-identifier="${acc.email}" data-password="${acc.is_test_account ? '12345678' : (acc.defaultPassword || '')}" data-test="${acc.is_test_account ? 'true' : 'false'}" title="${acc.is_test_account ? 'Dummy Student (Test Account): Subject to same real GPS verification' : `Student: ${escapeHtml(acc.student_name)} (${acc.student_id})`}">
+      <span class="quick-chip-dot" style="${acc.is_test_account ? 'background: #f59e0b;' : ''}"></span>
+      <span style="${acc.is_test_account ? 'color: #fbbf24; font-weight: 800;' : ''}">${escapeHtml(acc.student_name)}${acc.is_test_account ? ' [TEST]' : ''}</span>
     </button>
   `).join('');
 
@@ -605,6 +609,7 @@ function renderQuickAccountsGrid() {
       const name = chip.getAttribute('data-name');
       const iden = chip.getAttribute('data-identifier');
       const pass = chip.getAttribute('data-password');
+      const isTest = chip.getAttribute('data-test') === 'true';
 
       setLoginRole(role);
 
@@ -612,8 +617,16 @@ function renderQuickAccountsGrid() {
       if (elements.inputSignInEmail) elements.inputSignInEmail.value = iden;
       if (elements.inputSignInPassword) elements.inputSignInPassword.value = pass;
 
+      // Always reset location verification when changing accounts
+      attendanceService.resetVerification('Switched student account. Fresh physical GPS reading required.');
+      updateLocationStateUI(attendanceService.locationVerificationState, attendanceService.lastVerificationResult);
+
       if (role === 'student') {
-        showStandaloneAuthFeedback(`Selected ${name} (${iden}). Mandatory GPS verification required: click "Check My Location" to proceed.`, 'idle');
+        if (isTest) {
+          showStandaloneAuthFeedback(`Selected Dummy Student (Test Account: dummy@gmail.com). Subject to strict real GPS verification (no bypass). Click "Check My Location" to proceed.`, 'idle');
+        } else {
+          showStandaloneAuthFeedback(`Selected ${name} (${iden}). Mandatory GPS verification required: click "Check My Location" to proceed.`, 'idle');
+        }
       } else {
         showStandaloneAuthFeedback(`Selected ${name} (Mentor). Click "Sign In as Mentor" below.`, 'idle');
       }
@@ -625,6 +638,9 @@ function renderQuickAccountsGrid() {
  * Switch Active Login Role (Student vs Mentor / Administrator)
  */
 function setLoginRole(role) {
+  if (activeLoginRole !== role) {
+    attendanceService.resetVerification('Switched login role.');
+  }
   activeLoginRole = role;
 
   if (role === 'student') {
@@ -885,81 +901,118 @@ function showCheckoutFeedback(msg, type) {
  */
 async function handleCheckMyLocation() {
   if (elements.btnSignInCheckLocation) elements.btnSignInCheckLocation.disabled = true;
+  if (elements.btnSignInRetryLocation) elements.btnSignInRetryLocation.disabled = true;
   showStandaloneAuthFeedback('Acquiring fresh browser GPS coordinates at SNS College of Technology...', 'loading');
 
   const result = await attendanceService.verifyCurrentLocation();
   if (elements.btnSignInCheckLocation) elements.btnSignInCheckLocation.disabled = false;
+  if (elements.btnSignInRetryLocation) elements.btnSignInRetryLocation.disabled = false;
 
   updateLocationStateUI(attendanceService.locationVerificationState, attendanceService.lastVerificationResult);
 
   if (result.success) {
-    showStandaloneAuthFeedback(result.details?.message || 'Location verified at SNS College of Technology! Sign In is now enabled.', 'success');
+    showStandaloneAuthFeedback(result.message || 'Location verified at SNS College of Technology! Sign In is now enabled.', 'success');
   } else {
-    showStandaloneAuthFeedback(result.details?.message || result.message || 'Location verification rejected.', 'error');
+    showStandaloneAuthFeedback(result.message || 'Location verification rejected.', 'error');
   }
 }
 
 /**
- * Update Location Verification State UI (One of 7 distinct states)
+ * Update Location Verification State UI (Handles all 11 explicit verification states)
  * Updates both the standalone sign-in location indicators and dashboard radar
  */
 function updateLocationStateUI(state, details = {}) {
   let title = 'Waiting for Location';
   let accText = 'GPS Idle';
-  let guidanceText = 'Click "Check My Location" below to acquire fresh browser GPS readings and verify you are within SNS College of Technology boundary before confirming attendance.';
-  let stateClass = 'state-waiting';
+  let guidanceText = 'Click <strong>"Check My Location"</strong> below to acquire fresh browser GPS readings and verify you are within SNS College of Technology boundary before confirming attendance.';
+  let stateClass = 'state-idle';
   let isVerified = false;
+  let showRetry = false;
 
   switch (state) {
-    case LOCATION_STATES.CHECKING:
+    case LOCATION_STATES.REQUESTING_PERMISSION:
       stateClass = 'state-checking';
-      title = 'Checking Location...';
+      title = 'Requesting GPS Permission...';
+      accText = 'Prompting Access...';
+      guidanceText = 'Please click <strong>"Allow"</strong> when your browser prompts for device location access.';
+      break;
+
+    case LOCATION_STATES.FETCHING_LOCATION:
+      stateClass = 'state-checking';
+      title = 'Acquiring Real Device GPS...';
       accText = 'Acquiring GPS...';
-      guidanceText = 'Acquiring fresh browser geolocation coordinates and validating campus geofence perimeter...';
+      guidanceText = 'Contacting device GPS satellites and positioning hardware for high-accuracy coordinates...';
+      break;
+
+    case LOCATION_STATES.VALIDATING_LOCATION:
+      stateClass = 'state-checking';
+      title = 'Validating Campus Boundary...';
+      accText = 'Evaluating Geofence...';
+      guidanceText = 'Calculating distance between current coordinates and SNS College of Technology perimeter...';
       break;
 
     case LOCATION_STATES.VERIFIED:
       stateClass = 'state-verified';
       title = 'Location Verified';
       accText = `${Math.round(details.accuracy || 12)}m Accuracy`;
-      guidanceText = `Success! Your GPS position is verified inside the SNS College of Technology campus boundary (${Math.round(details.distance || 14)}m from center). You are eligible to complete check-in.`;
+      guidanceText = `Success! Your GPS position is verified inside the SNS College of Technology campus boundary (${Math.round(details.distance || 0)}m from center). You are eligible to complete check-in.`;
       isVerified = true;
       break;
 
-    case LOCATION_STATES.OUTSIDE:
-      stateClass = 'state-outside';
-      title = 'Outside Campus Boundary';
-      accText = `${Math.round(details.accuracy || 0)}m Accuracy`;
-      guidanceText = `Location rejected: You are ${Math.round(details.distance || 0)}m away from SNS College of Technology. Maximum approved boundary is ${attendanceService.campusSettings.radius_meters}m. You must be physically on campus to mark attendance.`;
-      break;
-
-    case LOCATION_STATES.LOW_ACCURACY:
-      stateClass = 'state-low-accuracy';
-      title = 'GPS Accuracy Too Low';
-      accText = `${Math.round(details.accuracy || 0)}m (Max: ${attendanceService.campusSettings.max_accuracy_meters}m)`;
-      guidanceText = `Location rejected: Reported GPS accuracy (${Math.round(details.accuracy || 0)}m) exceeds acceptable campus threshold (${attendanceService.campusSettings.max_accuracy_meters}m). Please enable High Accuracy GPS and retry.`;
+    case LOCATION_STATES.LOCATION_DISABLED:
+      stateClass = 'state-disabled';
+      title = 'Location Service Turned Off';
+      accText = 'Location Disabled';
+      guidanceText = '<strong>Your device location is turned off. Enable Location services and try again.</strong>';
+      showRetry = true;
       break;
 
     case LOCATION_STATES.PERMISSION_DENIED:
       stateClass = 'state-denied';
       title = 'Location Permission Denied';
       accText = 'Permission Blocked';
-      guidanceText = 'Browser location permission was denied. Please allow location access in your browser settings (click the padlock icon in the address bar) and click Check My Location again.';
+      guidanceText = 'Browser location permission was denied. Please allow location access in your browser or device settings (click the padlock icon in the address bar), then click Retry Location.';
+      showRetry = true;
       break;
 
-    case LOCATION_STATES.UNABLE:
-      stateClass = 'state-unable';
-      title = 'Unable to Verify Location';
-      accText = 'Signal Unavailable';
-      guidanceText = `Unable to verify position: ${details.message || 'GPS signal unavailable'}. Ensure location services are turned on or use Simulated Mode for testing.`;
+    case LOCATION_STATES.GPS_TIMEOUT:
+      stateClass = 'state-timeout';
+      title = 'GPS Acquisition Timed Out';
+      accText = 'GPS Timed Out';
+      guidanceText = 'GPS signal acquisition timed out. Ensure your device has an unobstructed line of sight to the sky or is connected to mobile data/Wi-Fi, then click Retry Location.';
+      showRetry = true;
       break;
 
-    case LOCATION_STATES.WAITING:
+    case LOCATION_STATES.INACCURATE_LOCATION:
+      stateClass = 'state-low-accuracy';
+      title = 'GPS Accuracy Too Low';
+      accText = `${Math.round(details.accuracy || 0)}m (Max: ${attendanceService.campusSettings.max_accuracy_meters}m)`;
+      guidanceText = `Reported GPS accuracy (${Math.round(details.accuracy || 0)}m) exceeds the permitted campus threshold (${attendanceService.campusSettings.max_accuracy_meters}m). Please enable High Accuracy mode and click Retry Location.`;
+      showRetry = true;
+      break;
+
+    case LOCATION_STATES.OUTSIDE_CAMPUS:
+      stateClass = 'state-outside';
+      title = 'Outside Campus Boundary';
+      accText = `${Math.round(details.accuracy || 0)}m Accuracy`;
+      guidanceText = `Location rejected: You are ${Math.round(details.distance || 0)}m away from SNS College of Technology. Maximum approved boundary is ${attendanceService.campusSettings.radius_meters}m. You must be physically on campus to mark attendance.`;
+      showRetry = true;
+      break;
+
+    case LOCATION_STATES.VERIFICATION_FAILED:
+      stateClass = 'state-failed';
+      title = 'Location Verification Failed';
+      accText = 'Verification Failed';
+      guidanceText = `Unable to verify position: ${details.message || 'GPS verification error'}. Please check your connection and click Retry Location.`;
+      showRetry = true;
+      break;
+
+    case LOCATION_STATES.IDLE:
     default:
-      stateClass = 'state-waiting';
+      stateClass = 'state-idle';
       title = 'Waiting for Location';
       accText = 'GPS Idle';
-      guidanceText = 'Click "Check My Location" below to acquire fresh browser GPS readings and verify you are within SNS College of Technology boundary before confirming attendance.';
+      guidanceText = 'Click <strong>"Check My Location"</strong> below to acquire fresh browser GPS readings and verify you are within SNS College of Technology boundary before confirming attendance.';
       break;
   }
 
@@ -972,15 +1025,34 @@ function updateLocationStateUI(state, details = {}) {
   if (elements.textSignInLocationGuidance) elements.textSignInLocationGuidance.innerHTML = guidanceText;
 
   if (elements.textSignInLiveDistance) {
-    elements.textSignInLiveDistance.textContent = details.distance !== undefined
-      ? `${Math.round(details.distance)}m (${isVerified ? 'Inside' : 'Outside'})`
-      : 'Not verified yet';
-    elements.textSignInLiveDistance.style.color = isVerified ? 'var(--accent-lime)' : '#f87171';
+    if (state === LOCATION_STATES.LOCATION_DISABLED) {
+      elements.textSignInLiveDistance.textContent = 'Location service OFF';
+      elements.textSignInLiveDistance.style.color = '#f87171';
+    } else if (state === LOCATION_STATES.PERMISSION_DENIED) {
+      elements.textSignInLiveDistance.textContent = 'Permission denied';
+      elements.textSignInLiveDistance.style.color = '#f87171';
+    } else if (details.distance !== undefined) {
+      elements.textSignInLiveDistance.textContent = `${Math.round(details.distance)}m (${isVerified ? 'Inside' : 'Outside'})`;
+      elements.textSignInLiveDistance.style.color = isVerified ? 'var(--accent-lime)' : '#f87171';
+    } else {
+      elements.textSignInLiveDistance.textContent = 'Not verified yet';
+      elements.textSignInLiveDistance.style.color = 'var(--text-muted)';
+    }
   }
+
   if (elements.textSignInLiveAccuracy) {
-    elements.textSignInLiveAccuracy.textContent = details.accuracy !== undefined
-      ? `${Math.round(details.accuracy)}m (${details.accuracy <= attendanceService.campusSettings.max_accuracy_meters ? 'Pass' : 'Too High'})`
-      : '-- (< 100m required)';
+    if (state === LOCATION_STATES.LOCATION_DISABLED || state === LOCATION_STATES.PERMISSION_DENIED) {
+      elements.textSignInLiveAccuracy.textContent = 'Unavailable';
+    } else if (details.accuracy !== undefined) {
+      elements.textSignInLiveAccuracy.textContent = `${Math.round(details.accuracy)}m (${details.accuracy <= attendanceService.campusSettings.max_accuracy_meters ? 'Pass' : 'Too High'})`;
+    } else {
+      elements.textSignInLiveAccuracy.textContent = '-- (< 100m required)';
+    }
+  }
+
+  // Toggle Retry button visibility
+  if (elements.btnSignInRetryLocation) {
+    elements.btnSignInRetryLocation.style.display = showRetry ? 'inline-flex' : 'none';
   }
 
   // 2. Enable or Disable Sign-In Button on Standalone Page
@@ -999,7 +1071,7 @@ function updateLocationStateUI(state, details = {}) {
   // 3. Update Dashboard Radar Elements
   if (elements.attGeofenceStatusChip) {
     elements.attGeofenceStatusChip.className = isVerified ? 'geofence-verify-chip verified' : 'geofence-verify-chip unverified';
-    elements.attGeofenceStatusChip.innerHTML = `<span class="pulse-dot"></span><span>${isVerified ? 'Inside Boundary' : (state === LOCATION_STATES.OUTSIDE ? 'Outside Boundary' : 'Unverified')}</span>`;
+    elements.attGeofenceStatusChip.innerHTML = `<span class="pulse-dot"></span><span>${isVerified ? 'Inside Boundary' : (state === LOCATION_STATES.OUTSIDE_CAMPUS ? 'Outside Boundary' : 'Unverified')}</span>`;
   }
 }
 
@@ -1552,12 +1624,8 @@ function setupEventListeners() {
     elements.btnSignInCheckLocation.addEventListener('click', handleCheckMyLocation);
   }
 
-  if (elements.btnSignInToggleGpsMode) {
-    elements.btnSignInToggleGpsMode.addEventListener('click', toggleGpsMode);
-  }
-
-  if (elements.btnToggleGpsMode) {
-    elements.btnToggleGpsMode.addEventListener('click', toggleGpsMode);
+  if (elements.btnSignInRetryLocation) {
+    elements.btnSignInRetryLocation.addEventListener('click', handleCheckMyLocation);
   }
 
   if (elements.btnSignInThemeDark) {
@@ -1637,33 +1705,6 @@ function setupEventListeners() {
       renderAttendanceDashboard();
     });
   }
-}
-
-/**
- * Toggle GPS Simulation Mode vs Real Device GPS
- */
-function toggleGpsMode() {
-  attendanceService.simulationMode = !attendanceService.simulationMode;
-  const label = attendanceService.simulationMode ? 'Simulated (SNSCT)' : 'Device Real GPS';
-  const desc = attendanceService.simulationMode
-    ? 'Simulated campus GPS active (for desktop testing anywhere)'
-    : 'Using real browser navigator.geolocation';
-
-  if (elements.btnSignInToggleGpsMode) elements.btnSignInToggleGpsMode.textContent = label;
-  if (elements.textSignInGpsModeDesc) elements.textSignInGpsModeDesc.textContent = desc;
-  if (elements.btnToggleGpsMode) elements.btnToggleGpsMode.textContent = label;
-  if (elements.gpsModeDesc) elements.gpsModeDesc.textContent = desc;
-
-  attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
-  updateLocationStateUI(LOCATION_STATES.WAITING, {});
-  renderAttendanceDashboard();
-
-  showStandaloneAuthFeedback(
-    attendanceService.simulationMode
-      ? 'Switched to Simulated SNSCT Campus GPS. Click "Check My Location" to verify.'
-      : 'Switched to Device Real GPS. Click "Check My Location" to verify.',
-    'idle'
-  );
 }
 
 /**

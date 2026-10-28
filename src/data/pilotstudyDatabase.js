@@ -71,7 +71,8 @@ export const AVATAR_PALETTES = {
   'std-17': 'linear-gradient(135deg, #0284c7 0%, #075985 100%)',
   'std-18': 'linear-gradient(135deg, #9333ea 0%, #581c87 100%)',
   'std-19': 'linear-gradient(135deg, #059669 0%, #064e3b 100%)',
-  'std-20': 'linear-gradient(135deg, #ea580c 0%, #7c2d12 100%)'
+  'std-20': 'linear-gradient(135deg, #ea580c 0%, #7c2d12 100%)',
+  'std-dummy': 'linear-gradient(135deg, #64748b 0%, #334155 100%)'
 };
 
 const LOCAL_STORAGE_CACHE_KEY = 'pilotstudy_cache_v2';
@@ -236,6 +237,7 @@ export class PilotStudyRealtimeDatabase {
       category_scores: categoryScores,
       attendance_summary: att,
       remarks: record.remarks || '',
+      is_test_account: Boolean(record.id === 'std-dummy' || record.is_test_account),
       updated_at: record.updated_at || new Date().toISOString(),
       avatarBg: AVATAR_PALETTES[record.id] || 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)'
     };
@@ -293,23 +295,33 @@ export class PilotStudyRealtimeDatabase {
 
   /**
    * Standard Competition Ranking (1224 Ranking Policy)
+   * Separates official cohort students (1-20) from development dummy/test accounts
    */
   recalculateRanks() {
-    // Sort descending by total_points, secondary sort alphabetically
-    this.students.sort((a, b) => {
+    const official = this.students.filter(s => !s.is_test_account && s.id !== 'std-dummy');
+    const testAccounts = this.students.filter(s => s.is_test_account || s.id === 'std-dummy');
+
+    // Sort official students descending by total_points, secondary sort alphabetically
+    official.sort((a, b) => {
       if (b.total_points !== a.total_points) {
         return b.total_points - a.total_points;
       }
       return a.student_name.localeCompare(b.student_name);
     });
 
-    this.students.forEach((std, idx) => {
-      if (idx > 0 && std.total_points === this.students[idx - 1].total_points) {
-        std.rank = this.students[idx - 1].rank;
+    official.forEach((std, idx) => {
+      if (idx > 0 && std.total_points === official[idx - 1].total_points) {
+        std.rank = official[idx - 1].rank;
       } else {
         std.rank = idx + 1;
       }
     });
+
+    testAccounts.forEach(std => {
+      std.rank = 'TEST';
+    });
+
+    this.students = [...official, ...testAccounts];
   }
 
   getStudents() {
@@ -327,6 +339,10 @@ export class PilotStudyRealtimeDatabase {
     const student = this.getStudentById(studentId);
     if (!student) {
       return { success: false, message: `Student ID "${studentId}" not found in database.` };
+    }
+
+    if (student.is_test_account || studentId === 'std-dummy') {
+      return { success: false, message: 'Permission Denied: Editing scores for test/dummy account is disabled.' };
     }
 
     // Validate all 11 category scores

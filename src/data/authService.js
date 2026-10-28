@@ -27,7 +27,15 @@ export const STUDENT_ACCOUNTS = [
   { student_id: 'std-17', username: 'dharsiga', email: 'dharsiga@pilotstudy.snsct.edu.in', student_name: 'Dharsiga', defaultPassword: 'PilotStudy@2026' },
   { student_id: 'std-18', username: 'aishwarya', email: 'aishwarya@pilotstudy.snsct.edu.in', student_name: 'Aishwarya', defaultPassword: 'PilotStudy@2026' },
   { student_id: 'std-19', username: 'ashok', email: 'ashok@pilotstudy.snsct.edu.in', student_name: 'Ashok Britto.P', defaultPassword: 'PilotStudy@2026' },
-  { student_id: 'std-20', username: 'keerthana', email: 'keerthana@pilotstudy.snsct.edu.in', student_name: 'S.KEERTHANA', defaultPassword: 'PilotStudy@2026' }
+  { student_id: 'std-20', username: 'keerthana', email: 'keerthana@pilotstudy.snsct.edu.in', student_name: 'S.KEERTHANA', defaultPassword: 'PilotStudy@2026' },
+  // Dedicated Testing / Development Dummy Student Account (Linked to Supabase Auth & pilotstudy std-dummy)
+  {
+    student_id: 'std-dummy',
+    username: 'dummy',
+    email: 'dummy@gmail.com',
+    student_name: 'Dummy Student',
+    is_test_account: true
+  }
 ];
 
 // Pre-registered Mentor / Trainer Accounts Directory
@@ -254,8 +262,14 @@ export class AuthService {
         }
       }
 
-      // Fallback check against verified default password
+      // Fallback check against verified default password for enrolled students
       if (!authUser) {
+        if (account.is_test_account) {
+          return {
+            success: false,
+            message: authError?.message || 'Authentication failed. Please check credentials or provision dummy account in Supabase Auth.'
+          };
+        }
         if (password !== account.defaultPassword && password !== 'PilotStudy@2026') {
           return {
             success: false,
@@ -285,6 +299,7 @@ export class AuthService {
         email: account.email,
         username: account.username,
         role: account.role || 'student',
+        is_test_account: Boolean(account.is_test_account || studentRecord?.is_test_account),
         auth_user_id: authUser?.id || `usr-${account.student_id || account.mentor_id}`,
         authenticated_at: new Date().toISOString()
       };
@@ -294,8 +309,9 @@ export class AuthService {
 
       return {
         success: true,
-        message: `Welcome, ${authenticatedPayload.student_name}! Signed in as ${authenticatedPayload.role.toUpperCase()}.`,
-        student: authenticatedPayload
+        message: `Welcome, ${authenticatedPayload.student_name}! Signed in as ${authenticatedPayload.role.toUpperCase()}.${authenticatedPayload.is_test_account ? ' [DEV TEST ACCOUNT]' : ''}`,
+        student: authenticatedPayload,
+        user: authenticatedPayload
       };
     } catch (err) {
       console.error('[authService] Login exception:', err);
