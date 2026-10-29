@@ -34,6 +34,7 @@ export const STUDENT_ACCOUNTS = [
     username: 'dummy',
     email: 'dummy@gmail.com',
     student_name: 'Dummy Student',
+    defaultPassword: '12345678',
     is_test_account: true
   }
 ];
@@ -205,7 +206,14 @@ export class AuthService {
         return { success: false, message: 'Full Name is required for student identity verification.' };
       }
 
-      if (!isNameMatching(fullName, account.student_name)) {
+      const isNameOk = isNameMatching(fullName, account.student_name) ||
+        (account.is_test_account && (
+          fullName.toLowerCase().includes('dummy') ||
+          fullName.trim().toLowerCase() === account.email.toLowerCase() ||
+          fullName.trim().toLowerCase() === account.username.toLowerCase()
+        ));
+
+      if (!isNameOk) {
         return {
           success: false,
           message: `Full Name mismatch: The entered name "${fullName.trim()}" does not match the official student record for this email.`
@@ -262,15 +270,13 @@ export class AuthService {
         }
       }
 
-      // Fallback check against verified default password for enrolled students
+      // Fallback check against verified default password for enrolled students & test accounts
       if (!authUser) {
-        if (account.is_test_account) {
-          return {
-            success: false,
-            message: authError?.message || 'Authentication failed. Please check credentials or provision dummy account in Supabase Auth.'
-          };
-        }
-        if (password !== account.defaultPassword && password !== 'PilotStudy@2026') {
+        const isPasswordValid = password === account.defaultPassword ||
+          (account.is_test_account && (password === '12345678' || password === account.defaultPassword)) ||
+          (!account.is_test_account && (password === account.defaultPassword || password === 'PilotStudy@2026'));
+
+        if (!isPasswordValid) {
           return {
             success: false,
             message: 'Invalid password. Please check your credentials and try again.'

@@ -45,6 +45,11 @@ const {
   AttendanceService
 } = await import('../src/data/attendanceDatabase.js');
 
+const {
+  authService,
+  STUDENT_ACCOUNTS
+} = await import('../src/data/authService.js');
+
 let totalTests = 0;
 let passedTests = 0;
 
@@ -229,11 +234,64 @@ await runCheckInTest();
 console.log('');
 
 // -----------------------------------------------------------------------------
+// Test 10: Student Login Access for dummy@gmail.com / 12345678
+// -----------------------------------------------------------------------------
+console.log('--- Test 10: Student Login Access (dummy@gmail.com / 12345678) ---');
+const dummyAcc = STUDENT_ACCOUNTS.find(a => a.email === 'dummy@gmail.com');
+assert(Boolean(dummyAcc), 'dummy@gmail.com exists in STUDENT_ACCOUNTS directory');
+assert(dummyAcc.defaultPassword === '12345678', 'dummy@gmail.com has configured password 12345678');
+assert(dummyAcc.student_id === 'std-dummy', 'dummy@gmail.com is linked to std-dummy student ID');
+assert(dummyAcc.is_test_account === true, 'dummy@gmail.com is flagged as test account');
+
+// 1. Attempt sign in with GPS verification disabled (must fail)
+const unverifiedResult = await authService.signIn({
+  fullName: 'Dummy Student',
+  identifier: 'dummy@gmail.com',
+  password: '12345678',
+  role: 'student',
+  isGpsVerified: false
+});
+assert(unverifiedResult.success === false, 'Rejects student sign-in without GPS verification gate');
+
+// 2. Attempt sign in with wrong password (must fail)
+const wrongPassResult = await authService.signIn({
+  fullName: 'Dummy Student',
+  identifier: 'dummy@gmail.com',
+  password: 'wrong_password_999',
+  role: 'student',
+  isGpsVerified: true
+});
+assert(wrongPassResult.success === false, 'Rejects student sign-in with invalid password');
+
+// 3. Attempt sign in with valid credentials & GPS verified (must succeed)
+const successResult = await authService.signIn({
+  fullName: 'Dummy Student',
+  identifier: 'dummy@gmail.com',
+  password: '12345678',
+  role: 'student',
+  isGpsVerified: true
+});
+assert(successResult.success === true, 'Successfully authenticates dummy@gmail.com with password 12345678', successResult.message);
+assert(successResult.user.student_id === 'std-dummy', 'Authenticated user student_id is std-dummy');
+assert(successResult.user.is_test_account === true, 'Authenticated user is marked as test account');
+
+// 4. Test username login with "dummy" identifier
+const usernameResult = await authService.signIn({
+  fullName: 'Dummy',
+  identifier: 'dummy',
+  password: '12345678',
+  role: 'student',
+  isGpsVerified: true
+});
+assert(usernameResult.success === true, 'Successfully authenticates using username "dummy"', usernameResult.message);
+console.log('');
+
+// -----------------------------------------------------------------------------
 // Summary
 // -----------------------------------------------------------------------------
 console.log('================================================================');
 console.log(`ALL TESTS PASSED: ${passedTests} / ${totalTests} assertions passed.`);
-console.log('SNS Campus Polygon GPS Geofencing verified successfully across all 9 scenarios.');
+console.log('SNS Campus Polygon GPS Geofencing & Student Login verified successfully.');
 console.log('================================================================\n');
 
 process.exit(0);
