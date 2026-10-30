@@ -840,27 +840,15 @@ async function handleStandaloneSignIn(e) {
 
 /**
  * Handle Student Check Out & Logout Action
- * Requires fresh GPS verification at SNS College of Technology,
- * records verified checkout, evaluates Late Night Owl (+10 pts) for checkouts strictly after 6 PM,
- * and signs student out.
+ * Signs out immediately for Mentors/Admins.
+ * For students:
+ * - If already checked out today, signs out immediately.
+ * - If pending checkout, offers option to verify campus GPS or sign out directly.
+ * - If GPS verification fails, allows signing out anyway without checkout credit.
  */
 async function handleStudentCheckOutAndLogout() {
   const authUser = authService.getCurrentStudent();
-  if (!authUser) return;
-
-  // Mentors sign out directly
-  if (authService.isMentorOrAdmin()) {
-    await authService.signOut();
-    attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
-    syncAuthStateView();
-    showStandaloneAuthFeedback('Mentor signed out securely.', 'idle');
-    return;
-  }
-
-  // If student already completed checkout today, proceed directly to secure sign out
-  const summary = attendanceService.getStudentAttendanceSummary(authUser.student_id);
-  const alreadyCheckedOut = !!summary?.todayRecord?.logout_at;
-  if (alreadyCheckedOut) {
+  if (!authUser) {
     await authService.signOut();
     attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
     syncAuthStateView();
@@ -868,44 +856,106 @@ async function handleStudentCheckOutAndLogout() {
     return;
   }
 
-  // Students must pass fresh GPS verification before checkout
-  showCheckoutFeedback('Acquiring fresh browser GPS location at SNS College of Technology for checkout...', 'loading');
-  if (elements.btnStudentDashboardCheckout) elements.btnStudentDashboardCheckout.disabled = true;
-
-  const locResult = await attendanceService.verifyCurrentLocation();
-  if (!locResult.success) {
-    showCheckoutFeedback(locResult.details?.message || locResult.message || 'Checkout rejected: GPS verification failed. You must be physically on campus.', 'error');
-    if (elements.btnStudentDashboardCheckout) elements.btnStudentDashboardCheckout.disabled = false;
+  // 1. Mentors and Administrators sign out directly
+  if (authService.isMentorOrAdmin()) {
+    if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = true;
+    try {
+      await authService.signOut();
+      attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
+      syncAuthStateView();
+      showStandaloneAuthFeedback('Mentor signed out securely.', 'idle');
+    } finally {
+      if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = false;
+    }
     return;
   }
 
-  showCheckoutFeedback('Location verified! Recording verified checkout in Supabase...', 'loading');
-  const checkOutResult = await attendanceService.performCheckOut(authUser.student_id);
-
-  if (!checkOutResult.success) {
-    if (checkOutResult.message && checkOutResult.message.includes('already completed check-out')) {
+  // 2. Students who already completed checkout today sign out directly
+  const summary = attendanceService.getStudentAttendanceSummary(authUser.student_id);
+  const alreadyCheckedOut = !!summary?.todayRecord?.logout_at;
+  if (alreadyCheckedOut) {
+    if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = true;
+    try {
       await authService.signOut();
       attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
       syncAuthStateView();
       showStandaloneAuthFeedback('Signed out securely.', 'idle');
-      return;
+    } finally {
+      if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = false;
     }
-    showCheckoutFeedback(checkOutResult.message, 'error');
-    if (elements.btnStudentDashboardCheckout) elements.btnStudentDashboardCheckout.disabled = false;
     return;
   }
 
-  // Check Night Owl Award status
-  let notice = `Checked out at ${formatISTTime(checkOutResult.record?.logout_at)}.`;
-  if (checkOutResult.nightOwlAwarded) {
-    notice += ` You are currently the latest checkout after 6 PM and qualify for the Late Night Owl award (+10 pts)!`;
+  // 3. Students pending checkout: prompt choice for GPS check-out or direct sign out
+  const wantGpsCheckout = confirm(
+    'Student Sign Out & Attendance Check-Out:\n\n' +
+    '• Click [OK] to verify your GPS location at SNS College of Technology and complete attendance check-out (+ Late Night Owl if after 6:00 PM).\n\n' +
+    '• Click [Cancel] to sign out of your account directly without recording attendance check-out.'
+  );
+
+  if (!wantGpsCheckout) {
+    if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = true;
+    try {
+      await authService.signOut();
+      attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
+      syncAuthStateView();
+      showStandaloneAuthFeedback('Signed out without attendance checkout.', 'idle');
+    } finally {
+      if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = false;
+    }
+    return;
   }
 
-  // Complete logout
-  await authService.signOut();
-  attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
-  syncAuthStateView();
-  showStandaloneAuthFeedback(`${notice} Signed out securely.`, 'success');
+  // Proceed with GPS verification for checkout
+  showCheckoutFeedback('Acquiring fresh browser GPS location at SNS College of Technology for checkout...', 'loading');
+  if (elements.btnStudentDashboardCheckout) elements.btnStudentDashboardCheckout.disabled = true;
+  if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = true;
+
+  try {
+    const locResult = await attendanceService.verifyCurrentLocation();
+    if (!locResult.success) {
+      const errMsg = locResult.details?.message || locResult.message || 'Checkout rejected: GPS verification failed. You must be physically on campus.';
+      showCheckoutFeedback(errMsg, 'error');
+      
+      const forceLogout = confirm(
+        `GPS Check-Out Failed:\n${errMsg}\n\nDo you want to sign out of the application anyway?`
+      );
+      if (forceLogout) {
+        await authService.signOut();
+        attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
+        syncAuthStateView();
+        showStandaloneAuthFeedback('Signed out without attendance checkout.', 'idle');
+      }
+      return;
+    }
+
+    showCheckoutFeedback('Location verified! Recording verified checkout in Supabase...', 'loading');
+    const checkOutResult = await attendanceService.performCheckOut(authUser.student_id);
+
+    let notice = 'Checked out successfully.';
+    if (checkOutResult.success) {
+      notice = `Checked out at ${formatISTTime(checkOutResult.record?.logout_at)}.`;
+      if (checkOutResult.nightOwlAwarded) {
+        notice += ` You qualified for the Late Night Owl award (+10 pts)!`;
+      }
+    }
+
+    await authService.signOut();
+    attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
+    syncAuthStateView();
+    showStandaloneAuthFeedback(`${notice} Signed out securely.`, 'success');
+  } catch (err) {
+    console.error('[auth] Checkout exception:', err);
+    const forceLogout = confirm(`Error during check-out: ${err.message}\n\nSign out anyway?`);
+    if (forceLogout) {
+      await authService.signOut();
+      attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
+      syncAuthStateView();
+    }
+  } finally {
+    if (elements.btnStudentDashboardCheckout) elements.btnStudentDashboardCheckout.disabled = false;
+    if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = false;
+  }
 }
 
 function showCheckoutFeedback(msg, type) {

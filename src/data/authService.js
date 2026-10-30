@@ -327,12 +327,16 @@ export class AuthService {
 
   /**
    * Sign out current user
+   * Guarantees session is cleared promptly even if Supabase network call hangs
    */
   async signOut() {
     try {
-      await supabase.auth.signOut();
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise(resolve => setTimeout(resolve, 1200))
+      ]);
     } catch (e) {
-      // ignore
+      console.warn('[authService] Supabase signOut warning:', e);
     }
     this.clearSession();
     return { success: true, message: 'Logged out successfully.' };

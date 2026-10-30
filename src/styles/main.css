@@ -123,28 +123,40 @@
   padding: 0;
 }
 
+html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   font-family: var(--font-main);
   background-color: var(--bg-canvas);
   color: var(--text-primary);
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.25s ease, color 0.25s ease;
   overflow-x: hidden;
+  position: relative;
 }
 
 /* Main Dashboard Canvas */
 .dashboard-viewport {
   width: 100%;
   max-width: var(--container-max-width);
+  min-width: 0;
   margin: 0 auto;
   padding: 1.5rem 2rem 3.5rem;
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
+  overflow-x: hidden;
 }
 
 /* ==========================================================================
@@ -159,14 +171,30 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: 20px;
   box-shadow: var(--shadow-card);
-  gap: 1.5rem;
+  gap: 1.25rem;
   flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .brand-group {
   display: flex;
   align-items: center;
   gap: 1rem;
+  min-width: 0;
+}
+
+.primary-nav-tabs,
+#primaryNavTabs {
+  display: flex;
+  align-items: center;
+  background: var(--bg-card-inner);
+  padding: 0.25rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border-subtle);
+  gap: 0.35rem;
+  min-width: 0;
 }
 
 .brand-icon-box {
@@ -1217,64 +1245,123 @@ body {
 
 @media (max-width: 768px) {
   .dashboard-viewport {
-    padding: 0.85rem 0.75rem 2.5rem;
-    gap: 1.25rem;
+    padding: 0.75rem 0.65rem 2.5rem;
+    gap: 1.15rem;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   .desktop-header {
     flex-direction: column;
     align-items: stretch;
     gap: 0.85rem;
-    padding: 0.85rem 1rem;
+    padding: 0.85rem 0.85rem;
     border-radius: 16px;
+    width: 100%;
+    max-width: 100%;
   }
 
   .brand-group {
-    flex-wrap: wrap;
+    display: flex;
+    align-items: center;
     gap: 0.75rem;
+    width: 100%;
+    min-width: 0;
   }
 
   .brand-icon-box {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
   }
 
   .brand-title {
-    font-size: 1.3rem;
+    font-size: 1.2rem;
   }
 
+  .brand-subtitle-badge {
+    font-size: 0.65rem;
+  }
+
+  .primary-nav-tabs,
   #primaryNavTabs {
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     margin-left: 0 !important;
     overflow-x: auto;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    padding: 0.2rem 0.25rem;
+    padding: 0.25rem 0.3rem;
     justify-content: flex-start;
+    gap: 0.35rem;
+    box-sizing: border-box;
+    display: flex;
+    flex-wrap: nowrap;
   }
 
+  .primary-nav-tabs::-webkit-scrollbar,
   #primaryNavTabs::-webkit-scrollbar {
     display: none;
   }
 
-  .pill-option-btn {
-    padding: 0.35rem 0.75rem;
+  .primary-nav-tabs .pill-option-btn,
+  #primaryNavTabs .pill-option-btn {
+    padding: 0.4rem 0.75rem;
     font-size: 0.76rem;
     flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .header-controls {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
     width: 100%;
     gap: 0.5rem;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .header-user-session-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 100%;
+    padding: 0.35rem 0.65rem 0.35rem 0.45rem;
+    border-radius: 14px;
+    gap: 0.5rem;
+    background: var(--bg-card-inner);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .header-user-name-col {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .header-user-name {
+    font-size: 0.8rem;
+    font-weight: 700;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .header-action-btn-text {
+    display: inline;
   }
 
   .desktop-student-row {
-    grid-template-columns: 36px 38px 1fr auto;
-    padding: 0.65rem 0.85rem;
-    gap: 0.65rem;
+    grid-template-columns: 32px 36px minmax(0, 1fr) auto;
+    padding: 0.65rem 0.75rem;
+    gap: 0.55rem;
+    width: 100%;
+    max-width: 100%;
   }
 
   .row-progress-col {
@@ -1282,54 +1369,101 @@ body {
   }
 
   .podium-stage-row {
-    gap: 0.75rem;
+    gap: 0.45rem;
+    width: 100%;
     max-width: 100%;
+    padding: 0;
+  }
+
+  .podium-pedestal-col {
+    flex: 1 1 0;
+    max-width: 115px;
+    min-width: 0;
+  }
+
+  .podium-name-text {
+    font-size: 0.72rem;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .rank-center-1 .podium-3d-number {
-    font-size: 3rem;
+    font-size: 2.6rem;
   }
   .rank-left-2 .podium-3d-number {
-    font-size: 2.4rem;
+    font-size: 2.1rem;
   }
   .rank-right-3 .podium-3d-number {
-    font-size: 2.1rem;
+    font-size: 1.8rem;
   }
 
   .desktop-podium-card {
-    padding: 1.25rem 1rem 1.25rem;
+    padding: 1.25rem 0.85rem 1.25rem;
     border-radius: 18px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .desktop-leaderboard-card {
+    padding: 1.25rem 0.85rem 1.5rem;
+    border-radius: 18px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .leaderboard-toolbar-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.85rem;
+  }
+
+  .desktop-search-wrapper {
+    width: 100%;
   }
 }
 
 /* Smartphone Viewport Optimization (<= 540px) */
 @media (max-width: 540px) {
   .dashboard-viewport {
-    padding: 0.65rem 0.5rem 2rem;
-    gap: 1rem;
+    padding: 0.5rem 0.45rem 2rem;
+    gap: 0.95rem;
+  }
+
+  .desktop-header {
+    padding: 0.75rem 0.65rem;
+    border-radius: 14px;
+    gap: 0.75rem;
   }
 
   .brand-title {
-    font-size: 1.15rem;
+    font-size: 1.1rem;
   }
 
   .brand-subtitle-badge {
-    font-size: 0.65rem;
+    font-size: 0.62rem;
   }
 
-  .header-user-session-group {
-    padding: 0.2rem 0.5rem 0.2rem 0.25rem;
+  .header-controls {
     gap: 0.4rem;
-    max-width: 175px;
   }
 
-  .header-user-name {
-    font-size: 0.74rem;
-    max-width: 80px;
+  .control-item {
+    font-size: 0.7rem;
+  }
+
+  .control-caption {
+    font-size: 0.68rem;
+  }
+
+  .pill-option-btn {
+    padding: 0.3rem 0.55rem;
+    font-size: 0.72rem;
   }
 
   .podium-stage-row {
-    gap: 0.35rem;
+    gap: 0.3rem;
   }
 
   .podium-pedestal-col {
@@ -1337,100 +1471,85 @@ body {
   }
 
   .rank-center-1 .podium-avatar-circle {
-    width: 62px;
-    height: 62px;
-    font-size: 1.25rem;
-    border-width: 3px;
+    width: 56px;
+    height: 56px;
+    font-size: 1.15rem;
+    border-width: 2.5px;
   }
 
   .rank-left-2 .podium-avatar-circle {
-    width: 50px;
-    height: 50px;
-    font-size: 1.05rem;
-    border-width: 2.5px;
+    width: 46px;
+    height: 46px;
+    font-size: 0.98rem;
+    border-width: 2px;
   }
 
   .rank-right-3 .podium-avatar-circle {
-    width: 46px;
-    height: 46px;
-    font-size: 0.95rem;
-    border-width: 2.5px;
+    width: 42px;
+    height: 42px;
+    font-size: 0.9rem;
+    border-width: 2px;
   }
 
   .podium-name-text {
-    font-size: 0.7rem;
-    max-width: 85px;
-    margin-bottom: 0.35rem;
+    font-size: 0.68rem;
+    max-width: 100%;
+    margin-bottom: 0.25rem;
   }
 
   .podium-points-pill {
-    padding: 0.2rem 0.45rem;
-    font-size: 0.68rem;
-    gap: 0.25rem;
+    padding: 0.18rem 0.4rem;
+    font-size: 0.65rem;
+    gap: 0.2rem;
   }
 
   .rank-center-1 .podium-block-front {
-    height: 115px;
+    height: 110px;
   }
   .rank-left-2 .podium-block-front {
-    height: 85px;
+    height: 80px;
   }
   .rank-right-3 .podium-block-front {
-    height: 65px;
+    height: 60px;
   }
 
   .rank-center-1 .podium-3d-number {
-    font-size: 2.2rem;
+    font-size: 2rem;
   }
   .rank-left-2 .podium-3d-number {
-    font-size: 1.7rem;
+    font-size: 1.6rem;
   }
   .rank-right-3 .podium-3d-number {
-    font-size: 1.5rem;
-  }
-
-  .svg-crown-floating {
-    top: -24px;
-    width: 26px;
-    height: 26px;
+    font-size: 1.4rem;
   }
 
   .desktop-student-row {
-    grid-template-columns: 26px 32px 1fr auto;
-    padding: 0.55rem 0.65rem;
-    gap: 0.45rem;
+    grid-template-columns: 24px 30px minmax(0, 1fr) auto;
+    padding: 0.55rem 0.55rem;
+    gap: 0.4rem;
     border-radius: 12px;
   }
 
-  .row-medal-icon {
-    width: 24px;
-    height: 24px;
-  }
-
   .row-rank-num {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
   }
 
   .row-student-avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 0.72rem;
+    width: 30px;
+    height: 30px;
+    font-size: 0.7rem;
   }
 
   .row-student-name {
-    font-size: 0.82rem;
+    font-size: 0.8rem;
   }
 
   .row-student-meta {
-    font-size: 0.68rem;
-  }
-
-  .row-points-col {
-    gap: 0.35rem;
+    font-size: 0.66rem;
   }
 
   .row-points-num {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
   }
 
   .row-edit-action-btn {
