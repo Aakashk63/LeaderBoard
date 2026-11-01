@@ -190,7 +190,14 @@ console.log('');
 // -----------------------------------------------------------------------------
 console.log('--- Test 9: Repeated Check-in Requests & Duplicate Prevention ---');
 const testService = new AttendanceService();
-// Reset records for test run
+// Reset records for test run and isolate from background realtime sync
+if (testService.realtimeChannel) {
+  testService.realtimeChannel.unsubscribe();
+  testService.realtimeChannel = null;
+}
+testService.fetchFromSupabase = async () => {}; // mock to prevent test overwrite
+testService.syncStudentPointsForAwards = async () => {};
+testService.saveToCache = () => {};
 testService.attendanceRecords = [];
 testService.dailyAwards = [];
 testService.locationVerificationState = LOCATION_STATES.VERIFIED;
@@ -210,24 +217,26 @@ testService.getCurrentGPSPosition = async () => ({
 });
 
 async function runCheckInTest() {
-  const testStudentId = 'std-4'; // SAMYUKTHA P V
+  const testStudentId = 'std-test-isolated-1';
 
   // 1. First Check-in attempt
   const firstResult = await testService.performCheckIn(testStudentId);
   assert(firstResult.success === true, 'First valid check-in inside campus boundary must succeed', firstResult.message);
-  assert(testService.attendanceRecords.length === 1, 'Exactly one attendance record must be created');
+  const studentRecords = testService.attendanceRecords.filter(r => r.student_id === testStudentId);
+  assert(studentRecords.length === 1, 'Exactly one attendance record must be created');
 
   // 2. Duplicate Check-in attempt on the same day
   const secondResult = await testService.performCheckIn(testStudentId);
   assert(secondResult.success === false, 'Duplicate check-in attempt on same date MUST be rejected');
   assert(secondResult.message.includes('Already checked in today'), 'Provides clear duplicate prevention feedback');
-  assert(testService.attendanceRecords.length === 1, 'Attendance record count remains exactly 1 (no duplicate row)');
+  const postSecondCount = testService.attendanceRecords.filter(r => r.student_id === testStudentId).length;
+  assert(postSecondCount === 1, 'Attendance record count remains exactly 1 (no duplicate row)');
 
-  // 3. Early Bird Award Verification
+  // 3. Early Bird Award Verification (1st arrival order gets 20 pts)
   const earlyAwards = testService.dailyAwards.filter(a => a.category === 'early_bird');
   assert(earlyAwards.length === 1, 'Exactly one Early Bird award object exists for today');
   assert(earlyAwards[0].winning_student_id === testStudentId, 'Early Bird award assigned to eligible first check-in student');
-  assert(earlyAwards[0].awarded_points === 10, 'Early bird awards exactly 10 points');
+  assert(earlyAwards[0].awarded_points === 20, 'Early bird 1st arrival awards exactly 20 points');
 }
 
 await runCheckInTest();
@@ -287,11 +296,41 @@ assert(usernameResult.success === true, 'Successfully authenticates using userna
 console.log('');
 
 // -----------------------------------------------------------------------------
+// Test 11: Demo Student Login Access (demo@gmail.com / 12345678 or demo)
+// -----------------------------------------------------------------------------
+console.log('--- Test 11: Demo Student Login Access (demo@gmail.com / 12345678) ---');
+const demoAcc = STUDENT_ACCOUNTS.find(a => a.student_id === 'std-demo');
+assert(Boolean(demoAcc), 'Demo Student account exists in STUDENT_ACCOUNTS directory');
+assert(demoAcc.email === 'demo@gmail.com', 'Demo student has email demo@gmail.com');
+assert(demoAcc.username === 'demo', 'Demo student has username demo');
+assert(demoAcc.student_id === 'std-demo', 'Demo student is linked to std-demo student ID');
+
+const demoSignInResult = await authService.signIn({
+  fullName: 'Demo Student',
+  identifier: 'demo@gmail.com',
+  password: '12345678',
+  role: 'student',
+  isGpsVerified: true
+});
+assert(demoSignInResult.success === true, 'Successfully authenticates demo@gmail.com with password 12345678', demoSignInResult.message);
+assert(demoSignInResult.user.student_id === 'std-demo', 'Authenticated user student_id is std-demo');
+
+const demoUsernameResult = await authService.signIn({
+  fullName: 'Demo Student',
+  identifier: 'demo',
+  password: '12345678',
+  role: 'student',
+  isGpsVerified: true
+});
+assert(demoUsernameResult.success === true, 'Successfully authenticates using username "demo"', demoUsernameResult.message);
+console.log('');
+
+// -----------------------------------------------------------------------------
 // Summary
 // -----------------------------------------------------------------------------
 console.log('================================================================');
 console.log(`ALL TESTS PASSED: ${passedTests} / ${totalTests} assertions passed.`);
-console.log('SNS Campus Polygon GPS Geofencing & Student Login verified successfully.');
+console.log('SNS Campus Polygon GPS Geofencing & Demo Student Login verified successfully.');
 console.log('================================================================\n');
 
 process.exit(0);

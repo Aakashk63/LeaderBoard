@@ -24,6 +24,7 @@ export const INITIAL_STUDENTS = [
   { id: 'std-18', name: 'Aishwarya' },
   { id: 'std-19', name: 'Ashok Britto.P' },
   { id: 'std-20', name: 'S.KEERTHANA' },
+  { id: 'std-demo', name: 'Demo Student', is_test_account: true },
   { id: 'std-dummy', name: 'Dummy Student', is_test_account: true }
 ];
 
@@ -32,10 +33,10 @@ export const SCORING_CATEGORIES = [
     id: 'early_bird',
     shortName: 'Early Bird',
     fullName: 'Early Bird',
-    maxPoints: 10,
+    maxPoints: 20,
     icon: '🌅',
     color: '#38bdf8',
-    description: 'Award up to 10 points for completing or arriving before the designated time.'
+    description: 'Awarded on arrival order: 1st gets 20 pts, each subsequent gets 1 pt less (2nd: 19, 3rd: 18, etc.).'
   },
   {
     id: 'night_owl',

@@ -1,20 +1,25 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Student Leaderboard & System Design Lab | Pilot Study Program</title>
-  <meta name="description" content="A modern desktop web dashboard for the student pilot study leaderboard and interactive System Design Lab featuring Caching and Load Balancing simulations.">
-  
+  <meta name="description"
+    content="A modern desktop web dashboard for the student pilot study leaderboard and interactive System Design Lab featuring Caching and Load Balancing simulations.">
+
   <!-- Google Fonts: Outfit & Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
+
   <link rel="stylesheet" href="./src/styles/main.css">
   <link rel="stylesheet" href="./src/styles/systemDesignLab.css">
   <link rel="stylesheet" href="./src/styles/attendance.css">
 </head>
+
 <body>
 
   <!-- ========================================================================
@@ -24,23 +29,27 @@
        Role-based login: Student vs Mentor / Administrator.
        ======================================================================== -->
   <div id="standaloneSignInPage" class="standalone-signin-viewport">
-    
+
     <!-- Floating Top Bar (Theme Switcher) -->
     <div class="standalone-top-bar">
       <div class="segmented-pill-group" id="loginThemeSwitchGroup">
         <button class="pill-option-btn active" id="btnSignInThemeDark" data-theme="dark" title="Dark Navy Theme">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
           </svg>
           <span>Dark Navy</span>
         </button>
         <button class="pill-option-btn" id="btnSignInThemeLight" data-theme="light" title="Light Cream Theme">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="4"/>
-            <path d="M12 2v2"/><path d="M12 20v2"/>
-            <path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/>
-            <path d="M2 12h2"/><path d="M20 12h2"/>
-            <path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2" />
+            <path d="M12 20v2" />
+            <path d="m4.93 4.93 1.41 1.41" />
+            <path d="m17.66 17.66 1.41 1.41" />
+            <path d="M2 12h2" />
+            <path d="M20 12h2" />
+            <path d="m6.34 17.66-1.41 1.41" />
+            <path d="m19.07 4.93-1.41 1.41" />
           </svg>
           <span>Light Cream</span>
         </button>
@@ -49,16 +58,18 @@
 
     <!-- Centered Sign-In Card Container -->
     <div class="signin-card-container">
-      
+
       <!-- Brand Header -->
       <div class="signin-brand-header">
         <div class="signin-brand-icon" title="Pilot Study Leaderboard">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
-            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
-            <path d="M4 22h16"/>
-            <path d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1h10v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34"/>
-            <path d="M6 4h12v7a6 6 0 0 1-12 0V4Z"/>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+            <path d="M4 22h16" />
+            <path
+              d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1h10v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34" />
+            <path d="M6 4h12v7a6 6 0 0 1-12 0V4Z" />
           </svg>
         </div>
         <h1 class="signin-title">Student Leaderboard</h1>
@@ -68,26 +79,36 @@
       <!-- Role Selector Segmented Controls -->
       <div class="role-tabs-row" id="roleSelectorRow">
         <button type="button" class="role-tab-btn active" id="btnRoleStudent">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
           <span>Student Sign-In</span>
         </button>
         <button type="button" class="role-tab-btn" id="btnRoleMentor">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
           <span>Mentor / Admin</span>
         </button>
       </div>
 
       <!-- Main Sign-In Form -->
       <form id="standaloneLoginForm" class="auth-form-wrap">
-        
+
         <!-- Full Name Field (Identity Confirmation) -->
         <div class="auth-field" id="fieldSignInFullName">
           <label for="inputSignInFullName">Full Name (Enrolled Student Identity)</label>
           <div class="auth-input-group">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
             </svg>
-            <input type="text" id="inputSignInFullName" class="auth-input" placeholder="e.g. SAMYUKTHA P V" autocomplete="name" required>
+            <input type="text" id="inputSignInFullName" class="auth-input" placeholder="Enter your full name"
+              autocomplete="name" required>
           </div>
         </div>
 
@@ -96,9 +117,11 @@
           <label for="inputSignInEmail" id="labelSignInEmail">Student Email Address</label>
           <div class="auth-input-group">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
             </svg>
-            <input type="text" id="inputSignInEmail" class="auth-input" placeholder="e.g. samyuktha@pilotstudy.snsct.edu.in" autocomplete="username" required>
+            <input type="text" id="inputSignInEmail" class="auth-input" placeholder="Enter your email address"
+              autocomplete="username" required>
           </div>
         </div>
 
@@ -107,9 +130,11 @@
           <label for="inputSignInPassword">Account Password</label>
           <div class="auth-input-group">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
-            <input type="password" id="inputSignInPassword" class="auth-input" placeholder="Assigned password (default: PilotStudy@2026)" autocomplete="current-password" required>
+            <input type="password" id="inputSignInPassword" class="auth-input"
+              placeholder="Enter your password" autocomplete="current-password" required>
           </div>
         </div>
 
@@ -117,7 +142,10 @@
         <div class="signin-gps-panel" id="panelSignInGps">
           <div class="signin-gps-header">
             <div class="signin-gps-title-group">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
               <span class="signin-gps-title">Campus Location Verification</span>
             </div>
             <span style="font-size: 0.7rem; color: var(--accent-lime); font-weight: 700;">MANDATORY GATE</span>
@@ -154,17 +182,26 @@
 
           <!-- Guidance / Explanation Box -->
           <div class="location-guidance-box" id="textSignInLocationGuidance">
-            Click <strong>"Check My Location"</strong> below. Location must be verified within the SNS College campus before Sign-In becomes available.
+            Click <strong>"Check My Location"</strong> below. Location must be verified within the SNS College campus
+            before Sign-In becomes available.
           </div>
 
           <!-- Location Action Buttons: Check My Location & Retry Location -->
-          <div style="display: flex; gap: 0.6rem; width: 100%;">
-            <button type="button" id="btnSignInCheckLocation" class="btn-check-location" style="flex: 1;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+          <div style="display: flex; gap: 0.6rem; width: 100%; flex-wrap: wrap;">
+            <button type="button" id="btnSignInCheckLocation" class="btn-check-location"
+              style="flex: 1; min-width: 180px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="12" cy="12" r="10" />
+                <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+              </svg>
               <span id="textCheckLocationBtn">Check My Location</span>
             </button>
-            <button type="button" id="btnSignInRetryLocation" class="btn-check-location" style="display: none; background: rgba(245, 158, 11, 0.15); border-color: #f59e0b; color: #fbbf24; flex: 1;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <button type="button" id="btnSignInRetryLocation" class="btn-check-location"
+              style="display: none; background: rgba(245, 158, 11, 0.15); border-color: #f59e0b; color: #fbbf24; flex: 1; min-width: 140px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M23 4v6h-6" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
               <span>Retry Location</span>
             </button>
           </div>
@@ -173,11 +210,15 @@
         <!-- Submit Button (Disabled until location verified for students) -->
         <button type="submit" id="btnStandaloneSignInSubmit" class="auth-submit-btn" disabled>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+            <polyline points="10 17 15 12 10 7" />
+            <line x1="15" y1="12" x2="3" y2="12" />
           </svg>
           <span id="textSignInButtonLabel">Sign In & Complete Attendance Check-In</span>
         </button>
-        <span style="font-size: 0.72rem; color: var(--text-muted); text-align: center; display: block; margin-top: -0.35rem;" id="textSignInGateNotice">
+        <span
+          style="font-size: 0.72rem; color: var(--text-muted); text-align: center; display: block; margin-top: -0.35rem;"
+          id="textSignInGateNotice">
           Location Verification Required Before Sign-In
         </span>
       </form>
@@ -185,17 +226,6 @@
       <!-- Feedback Alert Box -->
       <div id="boxSignInAlert" class="att-status-feedback-box idle" style="display: none;">
         <span id="textSignInAlert">Ready</span>
-      </div>
-
-      <!-- Quick Select Testing Helper (20 Enrolled Students + Mentors) -->
-      <div class="quick-accounts-panel">
-        <div class="quick-accounts-header">
-          <span class="quick-accounts-title">Quick Select Account (Testing Helper)</span>
-          <span style="font-size: 0.7rem; color: var(--accent-lime); font-weight: 700;">20 STUDENTS + TEST DUMMY + MENTORS</span>
-        </div>
-        <div class="quick-accounts-grid" id="gridStandaloneQuickAccounts">
-          <!-- Dynamically populated with student and mentor chips -->
-        </div>
       </div>
 
     </div><!-- /.signin-card-container -->
@@ -207,20 +237,22 @@
        Role-Based Views: Student (Dashboard, Attendance, Lab) vs Mentor (Full Admin)
        ======================================================================== -->
   <div class="dashboard-viewport" id="authenticatedAppViewport" style="display: none;">
-    
+
     <!-- 1. DESKTOP HEADER SECTION -->
     <header class="desktop-header">
       <div class="brand-group">
         <div class="brand-icon-box" title="Pilot Study Leaderboard">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
-            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
-            <path d="M4 22h16"/>
-            <path d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1h10v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34"/>
-            <path d="M6 4h12v7a6 6 0 0 1-12 0V4Z"/>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+            <path d="M4 22h16" />
+            <path
+              d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1h10v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34" />
+            <path d="M6 4h12v7a6 6 0 0 1-12 0V4Z" />
           </svg>
         </div>
-        
+
         <div class="brand-text-col">
           <h1 class="brand-title">Student Leaderboard</h1>
           <span class="brand-subtitle-badge">PILOT STUDY PROGRAM</span>
@@ -231,46 +263,28 @@
       <nav class="segmented-pill-group primary-nav-tabs" id="primaryNavTabs" aria-label="Main Navigation">
         <button class="pill-option-btn active" id="tabNavLeaderboard" title="View Student Leaderboard">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
-            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
-            <path d="M4 22h16"/>
-            <path d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1h10v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34"/>
-            <path d="M6 4h12v7a6 6 0 0 1-12 0V4Z"/>
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+            <path d="M4 22h16" />
+            <path
+              d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1h10v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34" />
+            <path d="M6 4h12v7a6 6 0 0 1-12 0V4Z" />
           </svg>
           <span>Leaderboard</span>
         </button>
 
-        <button class="pill-option-btn" id="tabNavAttendance" title="My Daily Attendance & Awards">
+        <button class="pill-option-btn" id="tabNavAttendance" title="Student Attendance Sheet & Live Records">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/>
-            <circle cx="12" cy="10" r="3"/>
+            <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z" />
+            <circle cx="12" cy="10" r="3" />
           </svg>
-          <span id="tabNavAttendanceLabel">My Attendance</span>
-        </button>
-
-        <button class="pill-option-btn" id="tabNavAdminAttendance" title="Administrator Attendance & Geofence Console">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
-          <span>Admin Console</span>
-        </button>
-        
-        <button class="pill-option-btn" id="tabNavSystemLab" title="Open Interactive System Design Lab">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect width="18" height="18" x="3" y="3" rx="2"/>
-            <path d="M3 9h18"/>
-            <path d="M9 21V9"/>
-          </svg>
-          <span>System Design Lab</span>
+          <span id="tabNavAttendanceLabel">Attendance</span>
         </button>
       </nav>
 
       <!-- Header Controls: Theme, Points Mode, Database & Settings -->
       <div class="header-controls">
-        
+
         <!-- Authenticated User Profile & Logout / Checkout -->
         <div class="header-user-session-group" id="headerUserSessionBadge">
           <div class="header-user-avatar" id="hdrUserAvatar">SV</div>
@@ -278,11 +292,13 @@
             <span class="header-user-name" id="hdrUserName">SAMYUKTHA P V</span>
             <span class="header-user-role-badge" id="hdrUserRole">STUDENT</span>
           </div>
-          <button type="button" class="header-action-btn" id="hdrBtnAction" title="Sign Out / Check Out" aria-label="Sign Out">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
+          <button type="button" class="header-action-btn" id="hdrBtnAction" title="Sign Out / Check Out"
+            aria-label="Sign Out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
             <span class="header-action-btn-text">Logout</span>
           </button>
@@ -294,17 +310,21 @@
           <div class="segmented-pill-group" id="themeSwitchGroup">
             <button class="pill-option-btn active" id="btnThemeDark" data-theme="dark" title="Dark Navy Theme">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
               </svg>
               <span>Dark Navy</span>
             </button>
             <button class="pill-option-btn" id="btnThemeLight" data-theme="light" title="Light Cream Theme">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="4"/>
-                <path d="M12 2v2"/><path d="M12 20v2"/>
-                <path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/>
-                <path d="M2 12h2"/><path d="M20 12h2"/>
-                <path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2" />
+                <path d="M12 20v2" />
+                <path d="m4.93 4.93 1.41 1.41" />
+                <path d="m17.66 17.66 1.41 1.41" />
+                <path d="M2 12h2" />
+                <path d="M20 12h2" />
+                <path d="m6.34 17.66-1.41 1.41" />
+                <path d="m19.07 4.93-1.41 1.41" />
               </svg>
               <span>Light Cream</span>
             </button>
@@ -317,13 +337,14 @@
           <div class="segmented-pill-group" id="scoreModeGroup">
             <button class="pill-option-btn" id="btnModeZero" data-mode="zero" title="Neutral 0 points baseline">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="9" r="7"/>
+                <circle cx="12" cy="9" r="7" />
               </svg>
               <span>Neutral (0 pts)</span>
             </button>
-            <button class="pill-option-btn active" id="btnModeDemo" data-mode="demo" title="Live pilot study demo scores">
+            <button class="pill-option-btn active" id="btnModeDemo" data-mode="demo"
+              title="Live pilot study demo scores">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
               </svg>
               <span>Pilot Scores</span>
             </button>
@@ -333,9 +354,9 @@
         <!-- Database Badge -->
         <div class="action-status-chip" title="Connected to Database: pilotstudy">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <ellipse cx="12" cy="5" rx="9" ry="3"/>
-            <path d="M3 5V19A9 3 0 0 0 21 19V5"/>
-            <path d="M3 12A9 3 0 0 0 21 12"/>
+            <ellipse cx="12" cy="5" rx="9" ry="3" />
+            <path d="M3 5V19A9 3 0 0 0 21 19V5" />
+            <path d="M3 12A9 3 0 0 0 21 12" />
           </svg>
           <span><strong>pilotstudy</strong></span>
           <span id="syncStatusBadge" style="font-size: 0.72rem; color: var(--accent-purple-light);">(Synced)</span>
@@ -347,17 +368,18 @@
          VIEW 1: PRIMARY LEADERBOARD VIEW
          ======================================================================== -->
     <div id="viewLeaderboard" style="display: flex; flex-direction: column; gap: 1.75rem;">
-      
+
       <!-- Top Three Winners Horizontal Podium Section -->
       <section class="desktop-podium-card">
         <div class="podium-section-header">
           <div class="podium-section-title">
             <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
-              <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
-              <path d="M4 22h16"/>
-              <path d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1h10v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34"/>
-              <path d="M6 4h12v7a6 6 0 0 1-12 0V4Z"/>
+              <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+              <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+              <path d="M4 22h16" />
+              <path
+                d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1h10v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34" />
+              <path d="M6 4h12v7a6 6 0 0 1-12 0V4Z" />
             </svg>
             <span>Top Performers Podium</span>
           </div>
@@ -385,11 +407,13 @@
 
           <!-- Search Bar -->
           <div class="desktop-search-wrapper">
-            <svg class="search-vector-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <svg class="search-vector-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            <input type="text" id="desktopSearchInput" class="desktop-search-input" placeholder="Search student by name..." autocomplete="off">
+            <input type="text" id="desktopSearchInput" class="desktop-search-input"
+              placeholder="Search student by name..." autocomplete="off">
           </div>
         </div>
 
@@ -402,428 +426,190 @@
     </div><!-- /#viewLeaderboard -->
 
     <!-- ========================================================================
-         VIEW 2: SYSTEM DESIGN LAB (Caching & Load Balancing)
+         VIEW 2: UNIFIED GPS-VERIFIED STUDENT ATTENDANCE SHEET
+         All Students Attendance Register, Previous Date Filter & Mentor Download
          ======================================================================== -->
-    <div id="viewSystemDesignLab" class="system-design-lab-container" style="display: none;">
-      
-      <!-- Lab Header & Module Switcher -->
-      <div class="lab-nav-header">
-        <div class="lab-title-group">
-          <div class="lab-icon-box">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-              <polyline points="2 17 12 22 22 17"/>
-              <polyline points="2 12 12 17 22 12"/>
-            </svg>
+    <div id="viewAttendance" class="attendance-view-layout"
+      style="display: none; flex-direction: column; gap: 1.5rem; width: 100%;">
+
+      <!-- Top Row: Clock Banner & Quick Student Check-Out Action -->
+      <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+        <div class="ist-live-clock-banner"
+          style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <div class="clock-info-col">
+            <span class="clock-ist-time" id="istLiveClockTime">--:--:-- --</span>
+            <span class="clock-ist-date" id="istLiveClockDate">Loading local time...</span>
           </div>
-          <div>
-            <h2 style="font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; color: var(--text-primary);">
-              System Design Lab
-            </h2>
-            <p style="font-size: 0.76rem; color: var(--text-muted); font-weight: 600;">
-              Interactive High-Performance Architecture Visualizations
-            </p>
-          </div>
-        </div>
-
-        <!-- Switcher between Caching and Load Balancing -->
-        <div class="lab-module-switcher">
-          <button class="lab-tab-btn active" id="btnLabModuleCaching">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-            </svg>
-            <span>Caching Simulation</span>
-          </button>
-          <button class="lab-tab-btn" id="btnLabModuleLb">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="16 3 21 3 21 8"/>
-              <line x1="4" y1="20" x2="21" y2="3"/>
-              <polyline points="21 16 21 21 16 21"/>
-              <line x1="15" y1="15" x2="21" y2="21"/>
-              <line x1="4" y1="4" x2="9" y2="9"/>
-            </svg>
-            <span>Load Balancing Simulation</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Module 1: Caching Simulation Card -->
-      <section class="lab-card" id="moduleCardCaching">
-        <div id="cachingSimMount"></div>
-      </section>
-
-      <!-- Module 2: Load Balancing Simulation Card -->
-      <section class="lab-card" id="moduleCardLb" style="display: none;">
-        <div id="lbSimMount"></div>
-      </section>
-
-    </div><!-- /#viewSystemDesignLab -->
-
-    <!-- ========================================================================
-         VIEW 3: GPS-VERIFIED DAILY ATTENDANCE (STUDENT DASHBOARD)
-         SNS College of Technology, Coimbatore • Early Bird & Late Night Owl Scoring
-         ======================================================================== -->
-    <div id="viewAttendance" class="attendance-view-layout" style="display: none;">
-      
-      <div class="attendance-grid-2col">
-        <!-- Left Column: Attendance Controls & GPS Geofence -->
-        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
-          
-          <!-- Live Time & Date Banner (IST Asia/Kolkata) -->
-          <div class="ist-live-clock-banner">
-            <div class="clock-info-col">
-              <span class="clock-ist-time" id="istLiveClockTime">--:--:-- --</span>
-              <span class="clock-ist-date" id="istLiveClockDate">Loading local time...</span>
-            </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
             <div class="clock-zone-badge" title="Official College Timezone: Asia/Kolkata">
               <span class="pulse-dot"></span>
               <span>IST (Asia/Kolkata)</span>
             </div>
-          </div>
-
-          <!-- Authenticated Student Identity & Status Card -->
-          <div class="att-card">
-            <div class="att-card-header">
-              <div class="att-card-title-group">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
-                </svg>
-                <span class="att-card-title">Student Profile & Daily Attendance</span>
-              </div>
-              <span class="auth-badge-pill" id="attStudentProfileBadge">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                Verified GPS Session
-              </span>
-            </div>
-
-            <!-- Profile Summary Box -->
-            <div class="student-session-bar" style="border-radius: 10px;">
-              <div class="student-session-profile">
-                <div class="student-session-avatar" id="attStudentAvatar">SV</div>
-                <div class="student-session-details">
-                  <span class="student-session-name" id="attStudentNameDisplay">SAMYUKTHA P V</span>
-                  <span class="student-session-email" id="attStudentEmailDisplay">samyuktha@pilotstudy.snsct.edu.in</span>
-                  <div class="student-session-meta">
-                    <span style="font-size: 0.72rem; color: var(--accent-purple-light); font-weight: 700;" id="attStudentIdDisplay">ID: std-4</span>
-                    <span style="font-size: 0.72rem; color: var(--text-muted);">•</span>
-                    <span style="font-size: 0.72rem; color: #34d399; font-weight: 700;" id="attStudentStatusDisplay">Checked In Today</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Today's Timestamps Grid -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; font-size: 0.82rem;">
-              <div style="background: var(--bg-card-inner); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border-subtle);">
-                <span style="color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; font-weight: 700; display: block;">Today's Check-In:</span>
-                <strong id="attStudentTodayLoginTime" style="color: var(--text-primary); font-size: 0.92rem;">Not checked in yet</strong>
-              </div>
-              <div style="background: var(--bg-card-inner); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border-subtle);">
-                <span style="color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; font-weight: 700; display: block;">Today's Check-Out:</span>
-                <strong id="attStudentTodayLogoutTime" style="color: var(--text-primary); font-size: 0.92rem;">Pending checkout</strong>
-              </div>
-            </div>
-          </div>
-
-          <!-- Campus Geofence Radar Card -->
-          <div class="att-card">
-            <div class="att-card-header">
-              <div class="att-card-title-group">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="2" y1="12" x2="22" y2="12"/>
-                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                </svg>
-                <span class="att-card-title">Campus Geofence Radar</span>
-              </div>
-              <span id="attGeofenceStatusChip" class="geofence-verify-chip verified">
-                <span class="pulse-dot"></span>
-                <span>Inside Boundary</span>
-              </span>
-            </div>
-
-            <div class="geofence-status-box">
-              <div class="geofence-headline">
-                <span class="campus-title-text" id="attCampusNameDisplay">SNS College of Technology, Coimbatore</span>
-              </div>
-              <div class="geofence-meta-list">
-                <div class="geofence-meta-item">
-                  <span>Campus Perimeter:</span>
-                  <strong id="attCampusCoordsDisplay">Verified Polygon (EPSG:4326)</strong>
-                </div>
-                <div class="geofence-meta-item">
-                  <span>Approved Scope:</span>
-                  <strong id="attCampusRadiusDisplay">Entire Campus & SNS iHub</strong>
-                </div>
-                <div class="geofence-meta-item">
-                  <span>Campus Facility Zone:</span>
-                  <strong id="attCampusFacilityDisplay" style="color: var(--accent-lime);">SNS iHub / Academic Blocks</strong>
-                </div>
-                <div class="geofence-meta-item">
-                  <span>Your Current Distance:</span>
-                  <strong id="attLiveDistanceMeters" style="color: var(--accent-lime);">--</strong>
-                </div>
-                <div class="geofence-meta-item">
-                  <span>Reported GPS Accuracy:</span>
-                  <strong id="attLiveAccuracyMeters">-- (&lt; 100m threshold)</strong>
-                </div>
-              </div>
-            </div>
-
-            <!-- Real Device GPS Enforcement Notice -->
-            <div class="gps-mode-toggle-wrap">
-              <div style="display: flex; flex-direction: column;">
-                <span class="gps-mode-label">GPS Verification Policy</span>
-                <span style="font-size: 0.72rem; color: var(--accent-lime);" id="gpsModeDesc">Strict hardware GPS geofencing active (No simulated coordinates permitted)</span>
-              </div>
-              <span class="geofence-verify-chip verified" style="font-size: 0.72rem;">
-                <span class="pulse-dot"></span> Real Hardware GPS
-              </span>
-            </div>
-          </div>
-
-          <!-- Dedicated Check Out & Logout Action Card -->
-          <div class="student-checkout-action-card" id="cardStudentCheckoutAction">
-            <div style="display: flex; align-items: center; justify-content: space-between;">
-              <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color: #f59e0b;">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                  <polyline points="16 17 21 12 16 7"/>
-                  <line x1="21" y1="12" x2="9" y2="12"/>
-                </svg>
-                <span style="font-family: var(--font-display); font-size: 1rem; font-weight: 800; color: var(--text-primary);">Check Out & Logout</span>
-              </div>
-              <span style="font-size: 0.72rem; color: #f59e0b; font-weight: 700;">FRESH GPS REQUIRED</span>
-            </div>
-
-            <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.45; margin: 0;">
-              Check out requires fresh physical location verification within SNS College of Technology. Checkouts strictly after <strong>6:00 PM IST</strong> qualify for the <strong>Late Night Owl award (10 pts)</strong>.
-            </p>
-
-            <button type="button" id="btnStudentDashboardCheckout" class="btn-checkout-prominent">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16 17 21 12 16 7"/>
-                <line x1="21" y1="12" x2="9" y2="12"/>
+            <!-- Student Check-out Button (Visible when student is signed in & checked in) -->
+            <button type="button" id="btnStudentDashboardCheckout" class="btn-checkout-prominent"
+              style="padding: 0.5rem 1.1rem; font-size: 0.82rem; margin: 0; width: auto;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
-              <span>Check Out & Logout (Fresh GPS Verification)</span>
+              <span>Check Out & Logout</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="attDashboardCheckoutAlert" class="att-status-feedback-box idle" style="display: none;">
+          <span id="attDashboardCheckoutAlertText">Ready</span>
+        </div>
+      </div>
+
+      <!-- Today's Daily Attendance Awards Showcase (Arrival Order 20 pts & Night Owl 10 pts) -->
+      <div class="awards-showcase-row">
+        <!-- Early Bird Card -->
+        <div class="award-trophy-card early-bird">
+          <div class="award-card-top">
+            <span class="award-badge-pill early">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+              </svg>
+              <span>Early Bird (Arrival Order)</span>
+            </span>
+            <span class="award-points-chip" id="bannerEarlyBirdPointsChip">Up to +20 pts</span>
+          </div>
+          <div class="award-winner-desc" id="todayEarlyBirdWinner">Evaluating arrival order...</div>
+          <div class="award-time-subtext" id="todayEarlyBirdTime">1st check-in gets 20 pts, each subsequent gets 1 pt
+            less (2nd: 19, 3rd: 18...)</div>
+        </div>
+
+        <!-- Late Night Owl Card -->
+        <div class="award-trophy-card night-owl">
+          <div class="award-card-top">
+            <span class="award-badge-pill night">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+              </svg>
+              <span>Late Night Owl</span>
+            </span>
+            <span class="award-points-chip">+10 pts</span>
+          </div>
+          <div class="award-winner-desc" id="todayNightOwlWinner">Window opens after 6:00 PM IST</div>
+          <div class="award-time-subtext" id="todayNightOwlTime">Verified attendance / checkout strictly after 18:00 IST
+          </div>
+        </div>
+      </div>
+
+      <!-- Main All Students Attendance Sheet Section -->
+      <div class="att-card" style="width: 100%;">
+        <div class="att-card-header"
+          style="flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between;">
+          <div class="att-card-title-group">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
+            </svg>
+            <div>
+              <span class="att-card-title" style="font-size: 1.15rem;">All Students Attendance Sheet</span>
+              <div style="font-size: 0.74rem; color: var(--text-muted);">Real-time physical campus check-in & check-out
+                records (Date, Login, Logout, Arrival Order & Points)</div>
+            </div>
+          </div>
+
+          <!-- Filter & Download Toolbar -->
+          <div style="display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;">
+
+            <!-- Date Filter Picker -->
+            <div
+              style="display: flex; align-items: center; gap: 0.45rem; background: var(--bg-card-inner); padding: 0.35rem 0.75rem; border-radius: 8px; border: 1px solid var(--border-subtle);">
+              <label for="attSheetDatePicker"
+                style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary);">Date (IST):</label>
+              <input type="date" id="attSheetDatePicker" class="admin-date-picker"
+                style="background: transparent; color: var(--text-primary); border: none; font-size: 0.82rem; font-weight: 600; outline: none; cursor: pointer;">
+            </div>
+
+            <!-- Quick Filter Presets -->
+            <button type="button" id="btnFilterToday" class="admin-btn admin-btn-secondary"
+              style="padding: 0.4rem 0.75rem; font-size: 0.75rem;">
+              Today
+            </button>
+            <button type="button" id="btnFilterAllDates" class="admin-btn admin-btn-secondary"
+              style="padding: 0.4rem 0.75rem; font-size: 0.75rem;">
+              All Records
             </button>
 
-            <div id="attDashboardCheckoutAlert" class="att-status-feedback-box idle" style="display: none;">
-              <span id="attDashboardCheckoutAlertText">Ready</span>
-            </div>
-          </div>
+            <!-- Recalculate Awards (Mentor/Admin) -->
+            <button type="button" id="btnAdminRecalculate" class="admin-btn admin-btn-secondary"
+              style="display: none; padding: 0.4rem 0.75rem; font-size: 0.75rem;"
+              title="Recalculate arrival order & awards">
+              Recalculate
+            </button>
 
-        </div>
-
-        <!-- Right Column: Today's Awards, Score Breakdown & History -->
-        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
-          
-          <!-- Today's Daily Attendance Awards Showcase -->
-          <div class="att-card">
-            <div class="att-card-header">
-              <div class="att-card-title-group">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="8" r="7"/>
-                  <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>
-                </svg>
-                <span class="att-card-title">Today's Daily Attendance Awards (10 pts each)</span>
-              </div>
-              <span style="font-size: 0.75rem; color: var(--accent-lime); font-weight: 700;">DAILY RECALCULATED</span>
-            </div>
-
-            <div class="awards-showcase-row">
-              <!-- Early Bird Card -->
-              <div class="award-trophy-card early-bird">
-                <div class="award-card-top">
-                  <span class="award-badge-pill early">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/></svg>
-                    Early Bird
-                  </span>
-                  <span class="award-points-chip">+10 pts</span>
-                </div>
-                <div class="award-winner-desc" id="todayEarlyBirdWinner">Evaluating earliest check-in...</div>
-                <div class="award-time-subtext" id="todayEarlyBirdTime">Earliest verified check-in of the day</div>
-              </div>
-
-              <!-- Late Night Owl Card -->
-              <div class="award-trophy-card night-owl">
-                <div class="award-card-top">
-                  <span class="award-badge-pill night">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-                    Late Night Owl
-                  </span>
-                  <span class="award-points-chip">+10 pts</span>
-                </div>
-                <div class="award-winner-desc" id="todayNightOwlWinner">Window opens after 6:00 PM IST</div>
-                <div class="award-time-subtext" id="todayNightOwlTime">Latest verified checkout strictly after 18:00 IST</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Cumulative Score vs Base Score Dual Display -->
-          <div class="att-card">
-            <div class="att-card-header">
-              <div class="att-card-title-group">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                </svg>
-                <span class="att-card-title">Student Overall Scoring Breakdown</span>
-              </div>
-              <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">Standard Competition Ranking</span>
-            </div>
-
-            <div class="score-dual-highlight-box">
-              <div class="score-col-item primary-score">
-                <span class="score-col-label">Cumulative Score</span>
-                <span class="score-col-value" id="attStudentCumScore">122</span>
-                <span class="score-col-sub">Used for Cohort Rank</span>
-              </div>
-              <div class="score-col-item">
-                <span class="score-col-label">Base Score</span>
-                <span class="score-col-value" id="attStudentBaseScore">102 / 115</span>
-                <span class="score-col-sub" id="attStudentBasePct">88.7% Base Period</span>
-              </div>
-              <div class="score-col-item">
-                <span class="score-col-label">Attendance Awards</span>
-                <span class="score-col-value" id="attStudentAttTotalPts" style="color: #34d399;">+20 pts</span>
-                <span class="score-col-sub" id="attStudentAwardsSummary">2 Early Bird • 0 Night Owl</span>
-              </div>
-            </div>
-
-            <!-- Student Check-in / Check-out Timestamp Badges for Today -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; font-size: 0.82rem;">
-              <div style="background: var(--bg-card-inner); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border-subtle);">
-                <span style="color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; font-weight: 700; display: block;">Today's Check-In:</span>
-                <strong id="attStudentTodayLoginTime" style="color: var(--text-primary); font-size: 0.92rem;">Not checked in yet</strong>
-              </div>
-              <div style="background: var(--bg-card-inner); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border-subtle);">
-                <span style="color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; font-weight: 700; display: block;">Today's Check-Out:</span>
-                <strong id="attStudentTodayLogoutTime" style="color: var(--text-primary); font-size: 0.92rem;">Pending checkout</strong>
-              </div>
-            </div>
-          </div>
-
-          <!-- Historical Daily Awards Preservation Table -->
-          <div class="att-card">
-            <div class="att-card-header">
-              <div class="att-card-title-group">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                </svg>
-                <span class="att-card-title">Daily Attendance Awards History</span>
-              </div>
-              <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">Idempotent History</span>
-            </div>
-
-            <div class="att-table-wrap">
-              <table class="att-history-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Category</th>
-                    <th>Winner</th>
-                    <th>Points</th>
-                    <th>Timestamp (IST)</th>
-                    <th>Scoring Reason</th>
-                  </tr>
-                </thead>
-                <tbody id="historicalAwardsTableBody">
-                  <!-- Populated dynamically -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-    </div><!-- /#viewAttendance -->
-
-    <!-- ========================================================================
-         VIEW 4: ADMINISTRATOR ATTENDANCE & GEOFENCE CONSOLE
-         ======================================================================== -->
-    <div id="viewAdminAttendance" class="admin-view-layout" style="display: none;">
-      
-      <!-- Admin Toolbar Row: Date Filter & Summary Chips -->
-      <div class="admin-toolbar-row">
-        <div class="admin-filter-group">
-          <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);">Attendance Date (IST):</label>
-          <input type="date" id="adminAttendanceDatePicker" class="admin-date-picker">
-
-          <div class="admin-metric-chip">
-            <span>Cohort:</span>
-            <strong id="adminMetricCohort">20 Students</strong>
-          </div>
-
-          <div class="admin-metric-chip">
-            <span>Checked In:</span>
-            <strong id="adminMetricCheckedIn" style="color: #34d399;">0 / 20</strong>
-          </div>
-
-          <div class="admin-metric-chip">
-            <span>Completed:</span>
-            <strong id="adminMetricCompleted" style="color: #a78bfa;">0 / 20</strong>
+            <!-- Mentor-Only Download Option -->
+            <button type="button" id="btnDownloadAttendanceCsv" class="admin-btn admin-btn-primary"
+              style="display: none; padding: 0.45rem 1rem; font-size: 0.8rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-weight: 700; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);"
+              title="Download verified attendance records as CSV (Mentor Only)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>Download Attendance (CSV)</span>
+            </button>
           </div>
         </div>
 
-        <div class="admin-btn-group">
-          <button type="button" id="btnAdminRecalculate" class="admin-btn admin-btn-primary" title="Recalculate Early Bird and Night Owl winners for the selected date">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            <span>Recalculate Awards</span>
-          </button>
-
-          <button type="button" id="btnAdminExportCsv" class="admin-btn admin-btn-secondary" title="Export verified attendance records to CSV">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span>Export CSV</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Cohort Attendance Grid Table -->
-      <div class="att-card">
-        <div class="att-card-header">
-          <div class="att-card-title-group">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <span class="att-card-title">All 20 Students Attendance & GPS Status</span>
+        <!-- Attendance Sheet Metrics Summary -->
+        <div
+          style="display: flex; gap: 1rem; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border-subtle); flex-wrap: wrap; background: rgba(255, 255, 255, 0.01);">
+          <div class="admin-metric-chip"><span>Cohort:</span> <strong id="attSheetMetricCohort">20 Students</strong>
           </div>
-          <span style="font-size: 0.75rem; color: var(--accent-purple-light); font-weight: 700;">SERVER TIMESTAMP VERIFIED</span>
+          <div class="admin-metric-chip"><span>Checked In:</span> <strong id="attSheetMetricCheckedIn"
+              style="color: #34d399;">0 / 20</strong></div>
+          <div class="admin-metric-chip"><span>Completed Checkouts:</span> <strong id="attSheetMetricCompleted"
+              style="color: #a78bfa;">0 / 20</strong></div>
+          <div class="admin-metric-chip"><span>Filter Date:</span> <strong id="attSheetMetricDate"
+              style="color: var(--accent-lime);">Today</strong></div>
         </div>
 
+        <!-- Full Attendance Sheet Table -->
         <div class="att-table-wrap">
           <table class="att-history-table">
             <thead>
               <tr>
-                <th>Student</th>
-                <th>Check-In (IST)</th>
-                <th>Check-In GPS</th>
-                <th>Check-Out (IST)</th>
-                <th>Check-Out GPS</th>
-                <th>Distance to Campus</th>
-                <th>Daily Awards</th>
+                <th>Date</th>
+                <th>Student Name & ID</th>
+                <th>Login Time (IST)</th>
+                <th>Logout Time (IST)</th>
+                <th>Arrival Order & Points</th>
+                <th>Verified Campus Location</th>
                 <th>Status</th>
               </tr>
             </thead>
-            <tbody id="adminAttendanceTableBody">
-              <!-- Dynamically rendered all 20 rows -->
+            <tbody id="allStudentsAttendanceTableBody">
+              <!-- Dynamically populated rows for all students -->
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- Campus Geofence Configuration Card -->
-      <div class="att-card">
-        <div class="att-card-header">
+      <!-- Collapsible Geofence Configuration Drawer (Mentor Only) -->
+      <div class="att-card" id="geofenceAdminDrawer" style="display: none; width: 100%;">
+        <div class="att-card-header" style="cursor: pointer;" id="headerGeofenceDrawerToggle">
           <div class="att-card-title-group">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            <span class="att-card-title">SNS College of Technology Geofence Configuration</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            <span class="att-card-title">SNS College of Technology Geofence Configuration (Mentor Admin)</span>
           </div>
-          <span style="font-size: 0.72rem; color: var(--accent-lime); font-weight: 700;">ADMIN CONTROL</span>
+          <span style="font-size: 0.72rem; color: var(--accent-lime); font-weight: 700;">SETTINGS</span>
         </div>
 
-        <form id="adminGeofenceForm" class="geofence-config-grid">
+        <form id="adminGeofenceForm" class="geofence-config-grid" style="display: none; padding-top: 1rem;">
           <div class="geofence-input-field" style="grid-column: 1 / -1;">
             <label for="cfgCampusName">Approved Campus Name</label>
             <input type="text" id="cfgCampusName" value="SNS College of Technology, Coimbatore" required>
@@ -856,61 +642,41 @@
             <label for="cfgRadius">Fallback Radius (meters)</label>
             <input type="number" id="cfgRadius" value="500" min="50" max="5000" required>
           </div>
-
-          <!-- Verified Boundary Polygon Coordinate Editor -->
           <div class="geofence-input-field" style="grid-column: 1 / -1;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div
+              style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
               <label for="cfgPolygon" style="font-weight: 700; color: var(--accent-purple-light);">
                 Verified Campus Boundary Polygon Coordinates [Longitude, Latitude]
               </label>
               <div style="display: flex; gap: 0.5rem;">
-                <button type="button" id="btnLoadDefaultPolygon" class="admin-btn" style="padding: 0.3rem 0.65rem; font-size: 0.72rem;">
-                  Load Default SNS Campus Boundary (Incl. SNS iHub)
+                <button type="button" id="btnLoadDefaultPolygon" class="admin-btn"
+                  style="padding: 0.3rem 0.65rem; font-size: 0.72rem;">
+                  Load Default
                 </button>
-                <button type="button" id="btnValidatePolygon" class="admin-btn" style="padding: 0.3rem 0.65rem; font-size: 0.72rem; border-color: var(--accent-lime); color: var(--accent-lime);">
-                  Validate Polygon
+                <button type="button" id="btnValidatePolygon" class="admin-btn"
+                  style="padding: 0.3rem 0.65rem; font-size: 0.72rem; border-color: var(--accent-lime); color: var(--accent-lime);">
+                  Validate
                 </button>
               </div>
             </div>
-            <textarea id="cfgPolygon" rows="8" style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.65rem; width: 100%; resize: vertical;" spellcheck="false" required></textarea>
+            <textarea id="cfgPolygon" rows="6"
+              style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.65rem; width: 100%; resize: vertical;"
+              spellcheck="false" required></textarea>
             <div id="polygonValidationMsg" style="font-size: 0.74rem; color: var(--accent-lime); margin-top: 0.35rem;">
-              Polygon Status: Active verified 9-vertex campus perimeter (Enclosing SNSCT Academic Blocks, SNS iHub Innovation Labs, Allied Health, Sports Ground & Hostels).
+              Active verified 9-vertex campus perimeter (Enclosing SNSCT Academic Blocks, SNS iHub, Allied Health,
+              Sports Ground & Hostels).
             </div>
           </div>
-
-          <!-- Test Coordinate Checker -->
-          <div class="geofence-input-field" style="grid-column: 1 / -1; background: rgba(255, 255, 255, 0.02); border: 1px dashed var(--border-color); border-radius: 8px; padding: 0.75rem;">
-            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
-              Live Point-in-Polygon Coordinate Inspector
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.6rem; align-items: flex-end;">
-              <div>
-                <label style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Test Latitude</label>
-                <input type="number" step="0.000001" id="inputTestLat" value="11.10125" placeholder="e.g. 11.10125 (SNS iHub)" style="width: 100%; height: 34px;">
-              </div>
-              <div>
-                <label style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Test Longitude</label>
-                <input type="number" step="0.000001" id="inputTestLng" value="77.02685" placeholder="e.g. 77.02685" style="width: 100%; height: 34px;">
-              </div>
-              <button type="button" id="btnTestCoordinate" class="admin-btn admin-btn-primary" style="height: 34px;">
-                Test Location
-              </button>
-            </div>
-            <div id="testCoordinateResult" style="margin-top: 0.5rem; font-size: 0.75rem; font-weight: 600; color: var(--accent-lime);">
-              Ready to test coordinates against configured polygon boundary.
-            </div>
-          </div>
-
           <div style="grid-column: 1 / -1; display: flex; justify-content: flex-end; margin-top: 0.5rem;">
-            <button type="submit" class="admin-btn admin-btn-primary" style="height: 40px; padding: 0 1.5rem; font-size: 0.85rem;">
-              Save & Publish Geofence Configuration
+            <button type="submit" class="admin-btn admin-btn-primary"
+              style="height: 38px; padding: 0 1.25rem; font-size: 0.82rem;">
+              Save & Publish Geofence
             </button>
           </div>
         </form>
       </div>
 
-    </div><!-- /#viewAdminAttendance -->
+    </div><!-- /#viewAttendance -->
 
   </div><!-- /.dashboard-viewport -->
 
@@ -921,14 +687,17 @@
         <div class="modal-profile-group">
           <div class="modal-avatar-lg" id="modalStudentAvatar">SR</div>
           <div>
-            <h3 style="font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; color: var(--text-primary);" id="modalStudentName">SAMYUKTHA P V</h3>
-            <span style="font-size: 0.82rem; color: var(--accent-purple-light); font-weight: 700;" id="modalStudentRank">Rank #1 • Pilot Study Program</span>
+            <h3
+              style="font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; color: var(--text-primary);"
+              id="modalStudentName">SAMYUKTHA P V</h3>
+            <span style="font-size: 0.82rem; color: var(--accent-purple-light); font-weight: 700;"
+              id="modalStudentRank">Rank #1 • Pilot Study Program</span>
           </div>
         </div>
         <button class="modal-close-btn" id="closeModalBtn" aria-label="Close dialog">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
       </div>
@@ -947,7 +716,8 @@
       <!-- 11 Category Scoring Editor Area -->
       <div style="display: flex; flex-direction: column; gap: 0.5rem;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
+          <span
+            style="font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
             Category-Wise Scoring (11 Categories • Max 115 pts)
           </span>
           <span style="font-size: 0.72rem; color: var(--accent-purple-light); font-weight: 600;">
@@ -964,8 +734,8 @@
       <div class="modal-actions-row">
         <div class="save-status-msg" id="modalSaveStatusMsg">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 6v6l4 2"/>
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" />
           </svg>
           <span id="saveStatusText">Ready</span>
         </div>
@@ -974,11 +744,12 @@
           <button class="pill-option-btn" id="modalDismissBtn" style="padding: 0.55rem 1.15rem;">
             Cancel
           </button>
-          <button class="pill-option-btn active" id="btnSaveScoresToSupabase" style="padding: 0.55rem 1.35rem; font-weight: 800;">
+          <button class="pill-option-btn active" id="btnSaveScoresToSupabase"
+            style="padding: 0.55rem 1.35rem; font-weight: 800;">
             <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-              <polyline points="17 21 17 13 7 13 7 21"/>
-              <polyline points="7 3 7 8 15 8"/>
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+              <polyline points="17 21 17 13 7 13 7 21" />
+              <polyline points="7 3 7 8 15 8" />
             </svg>
             <span>Save to Supabase</span>
           </button>
@@ -987,7 +758,74 @@
     </div>
   </div>
 
+  <!-- Student Sign Out & Attendance Check-Out Confirmation Modal -->
+  <div class="desktop-modal-backdrop" id="logoutConfirmModal">
+    <div class="desktop-modal-card logout-modal-card">
+      <div class="logout-modal-header">
+        <div class="logout-modal-header-left">
+          <div class="logout-modal-icon-badge">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="logout-modal-title">Sign Out & Attendance Check-Out</h3>
+            <p class="logout-modal-subtitle">SNS College of Technology • Student Attendance</p>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" id="btnCloseLogoutModal" aria-label="Close dialog">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="logout-modal-body">
+        <p class="logout-modal-instruction">
+          Campus physical location verification is mandatory to record your attendance check-out and sign out of your account.
+        </p>
+
+        <div class="logout-options-list">
+          <!-- Mandatory GPS Verification & Check-Out -->
+          <button type="button" class="logout-choice-card primary-choice" id="btnLogoutWithGps">
+            <div class="choice-icon-wrap primary">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <div class="choice-text-wrap">
+              <div class="choice-title-row">
+                <span class="choice-title">Verify Location & Check Out</span>
+                <span class="choice-tag-pill">Mandatory Gate</span>
+              </div>
+              <span class="choice-desc">Verifies SNSCT physical campus coordinates and records your official checkout timestamp (+10 pts if after 6:00 PM IST).</span>
+            </div>
+            <svg class="choice-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- In-Modal Status / Feedback area -->
+        <div id="logoutModalStatusBox" class="att-status-feedback-box idle" style="display: none; margin-top: 0.85rem;">
+          <span id="logoutModalStatusText">Ready</span>
+        </div>
+      </div>
+
+      <div class="logout-modal-footer">
+        <button type="button" class="admin-btn admin-btn-secondary" id="btnCancelLogout" style="padding: 0.55rem 1.25rem;">
+          Cancel & Stay Signed In
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Main JavaScript Controller -->
   <script type="module" src="./src/main.js"></script>
 </body>
+
 </html>

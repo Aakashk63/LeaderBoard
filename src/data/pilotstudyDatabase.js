@@ -6,6 +6,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { attendanceService } from './attendanceDatabase.js';
 import { appQueryCache } from './cacheEngine.js';
+import { INITIAL_STUDENTS } from './initialData.js';
 
 // Environment credentials (works seamlessly in both Vite and Node.js testing runtimes)
 const SUPABASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
@@ -26,7 +27,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   }
 });
 
-export const MAX_SCORE = 115;
+export const MAX_SCORE = 125;
 export const MAX_ONE_TIME_SCORE = 95;
 
 // The 9 One-Time Scoring Categories (Scored once during pilot study, max 95 pts)
@@ -77,6 +78,7 @@ export const AVATAR_PALETTES = {
   'std-18': 'linear-gradient(135deg, #9333ea 0%, #581c87 100%)',
   'std-19': 'linear-gradient(135deg, #059669 0%, #064e3b 100%)',
   'std-20': 'linear-gradient(135deg, #ea580c 0%, #7c2d12 100%)',
+  'std-demo': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
   'std-dummy': 'linear-gradient(135deg, #64748b 0%, #334155 100%)'
 };
 
@@ -103,18 +105,22 @@ export class PilotStudyRealtimeDatabase {
     this.setupRealtimeSubscription();
 
     // Listen for attendance and daily award changes to update cumulative scores live
-    queueMicrotask(() => {
-      if (typeof attendanceService !== 'undefined' && attendanceService.on) {
-        attendanceService.on('change', () => {
-          if (this.students && this.students.length > 0) {
-            this.students = this.students.map(record => this.normalizeStudentRecord(record));
-            this.recalculateRanks();
-            this.saveToCache();
-            this.emit('change', this.students);
-          }
-        });
+    setTimeout(() => {
+      try {
+        if (typeof attendanceService !== 'undefined' && attendanceService && attendanceService.on) {
+          attendanceService.on('change', () => {
+            if (this.students && this.students.length > 0) {
+              this.students = this.students.map(record => this.normalizeStudentRecord(record));
+              this.recalculateRanks();
+              this.saveToCache();
+              this.emit('change', this.students);
+            }
+          });
+        }
+      } catch (e) {
+        // Cyclic import safe fallback
       }
-    });
+    }, 0);
   }
 
   loadFromCache() {
@@ -124,10 +130,21 @@ export class PilotStudyRealtimeDatabase {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
           this.students = parsed;
+          return;
         }
       }
     } catch (e) {
       console.warn('[pilotstudy] Local cache read error:', e);
+    }
+
+    if (!this.students || this.students.length === 0) {
+      this.students = INITIAL_STUDENTS.map(s => this.normalizeStudentRecord({
+        id: s.id,
+        student_name: s.name,
+        is_test_account: s.is_test_account,
+        category_scores: {}
+      }));
+      this.recalculateRanks();
     }
   }
 
@@ -210,43 +227,51 @@ export class PilotStudyRealtimeDatabase {
     const categoryScores = { ...(record.category_scores || {}) };
     let oneTimeSum = 0;
 
-    // Evaluate 9 one-time categories
+    // Evaluate 9 one-time mentor-evaluated categories (default to 0)
     ONE_TIME_CATEGORIES.forEach(cat => {
       if (typeof categoryScores[cat.id] !== 'number' || isNaN(categoryScores[cat.id])) {
-        const ratio = (record.total_points || 0) / MAX_SCORE;
-        categoryScores[cat.id] = Math.min(cat.maxPoints, Math.round(cat.maxPoints * ratio));
+        categoryScores[cat.id] = 0;
       }
       oneTimeSum += categoryScores[cat.id];
     });
 
-    // Attendance historical summary
-    const att = attendanceService.getStudentAttendanceSummary(record.id);
+    // Attendance summary (cyclic safe)
+    let att = { wonTodayEarly: false, wonTodayNight: false, todayEarlyPoints: 0, todayRecord: null };
+    try {
+      if (typeof attendanceService !== 'undefined' && attendanceService && attendanceService.getStudentAttendanceSummary) {
+        att = attendanceService.getStudentAttendanceSummary(record.id) || att;
+      }
+    } catch (e) {
+      // Cyclic import safe fallback
+    }
 
-    // Current-day attendance awards (Early Bird: 10, Night Owl: 10)
-    const todayEarlyPts = att.wonTodayEarly ? 10 : (Number(categoryScores.early_bird) || 0);
-    const todayNightPts = att.wonTodayNight ? 10 : (Number(categoryScores.night_owl) || 0);
+    // Current-day attendance awards (Arrival order up to 20 pts, Night Owl 10 pts)
+    const todayEarlyPts = att.todayRecord?.early_bird_points !== undefined
+      ? att.todayRecord.early_bird_points
+      : (Number(categoryScores.early_bird) || 0);
+    const todayNightPts = (att.wonTodayNight || Number(categoryScores.night_owl) > 0) ? 10 : 0;
 
-    // 1. Base Score: 9 one-time categories + current-day attendance awards (max 115)
-    const basePoints = Math.min(MAX_SCORE, oneTimeSum + Math.min(10, todayEarlyPts) + Math.min(10, todayNightPts));
-    const basePercentage = Math.round((basePoints / MAX_SCORE) * 1000) / 10;
+    categoryScores.early_bird = todayEarlyPts;
+    categoryScores.night_owl = todayNightPts;
 
-    // 2. Cumulative Score: 9 one-time categories + all historical daily Early Bird & Night Owl awards
-    const cumulativePoints = oneTimeSum + att.totalAttendancePoints;
+    // Total points = 9 mentor categories + auto-filled attendance points
+    const totalPoints = oneTimeSum + todayEarlyPts + todayNightPts;
+    const percentage = Math.round((totalPoints / MAX_SCORE) * 1000) / 10;
 
     return {
       id: record.id,
       student_name: record.student_name,
       one_time_points: oneTimeSum,
-      base_points: basePoints,
-      cumulative_points: cumulativePoints,
-      total_points: cumulativePoints, // Primary ranking total across pilot study
+      base_points: totalPoints,
+      cumulative_points: totalPoints,
+      total_points: totalPoints, // Primary ranking total across pilot study
       max_points: MAX_SCORE,
-      percentage: basePercentage,
+      percentage: percentage,
       rank: record.rank || 1,
       category_scores: categoryScores,
       attendance_summary: att,
       remarks: record.remarks || '',
-      is_test_account: Boolean(record.id === 'std-dummy' || record.is_test_account),
+      is_test_account: Boolean(record.id === 'std-dummy' || record.id === 'std-demo' || record.is_test_account),
       updated_at: record.updated_at || new Date().toISOString(),
       avatarBg: AVATAR_PALETTES[record.id] || 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)'
     };
@@ -307,8 +332,8 @@ export class PilotStudyRealtimeDatabase {
    * Separates official cohort students (1-20) from development dummy/test accounts
    */
   recalculateRanks() {
-    const official = this.students.filter(s => !s.is_test_account && s.id !== 'std-dummy');
-    const testAccounts = this.students.filter(s => s.is_test_account || s.id === 'std-dummy');
+    const official = this.students.filter(s => !s.is_test_account && s.id !== 'std-dummy' && s.id !== 'std-demo');
+    const testAccounts = this.students.filter(s => s.is_test_account || s.id === 'std-dummy' || s.id === 'std-demo');
 
     // Sort official students descending by total_points, secondary sort alphabetically
     official.sort((a, b) => {
@@ -350,8 +375,8 @@ export class PilotStudyRealtimeDatabase {
       return { success: false, message: `Student ID "${studentId}" not found in database.` };
     }
 
-    if (student.is_test_account || studentId === 'std-dummy') {
-      return { success: false, message: 'Permission Denied: Editing scores for test/dummy account is disabled.' };
+    if (studentId === 'std-dummy') {
+      return { success: false, message: 'Permission Denied: Editing scores for dummy account is disabled.' };
     }
 
     // Validate all 11 category scores
@@ -359,7 +384,12 @@ export class PilotStudyRealtimeDatabase {
     let total = 0;
 
     for (const cat of SCORING_CATEGORIES) {
-      const val = Number(newCategoryScores[cat.id]);
+      let val;
+      if (cat.id === 'early_bird' || cat.id === 'night_owl') {
+        val = Number(student.category_scores?.[cat.id]) || 0;
+      } else {
+        val = Number(newCategoryScores[cat.id]);
+      }
       if (isNaN(val) || val < 0) {
         return { success: false, message: `Invalid score for ${cat.name}. Must be positive number.` };
       }
@@ -475,3 +505,5 @@ export class PilotStudyRealtimeDatabase {
 
 // Global Singleton Instance
 export const pilotstudyDb = new PilotStudyRealtimeDatabase();
+if (typeof window !== 'undefined') window.pilotstudyDb = pilotstudyDb;
+if (typeof globalThis !== 'undefined') globalThis.pilotstudyDb = pilotstudyDb;

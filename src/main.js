@@ -23,26 +23,18 @@ import {
 } from './data/attendanceDatabase.js';
 import { authService, STUDENT_ACCOUNTS, MENTOR_ACCOUNTS } from './data/authService.js';
 import { appQueryCache } from './data/cacheEngine.js';
-import { CachingSimulation } from './systemDesignLab/cachingSim.js';
-import { LoadBalancingSimulation } from './systemDesignLab/loadBalancingSim.js';
-
 // Application State
 let currentTheme = 'dark';
 let currentPointsMode = 'demo'; // 'demo' (Supabase live) | 'zero'
-let currentPrimaryTab = 'leaderboard'; // 'leaderboard' | 'attendance' | 'admin_attendance' | 'system_lab'
-let currentLabModule = 'caching'; // 'caching' | 'load_balancing'
+let currentPrimaryTab = 'leaderboard'; // 'leaderboard' | 'attendance'
 let selectedStudentId = 'std-4'; // Default to SAMYUKTHA P V
 let activeAttendanceStudentId = 'std-4';
-let selectedAdminDate = getTodayISTDateString();
+let selectedAttendanceDate = getTodayISTDateString();
 let searchQuery = '';
 let activeLoginRole = 'student'; // 'student' | 'mentor'
 
 // In-modal editing state for active student
 let editingStudentScores = {};
-
-// Simulation Instances
-let cachingSimInstance = null;
-let lbSimInstance = null;
 
 // DOM Elements Cache
 const elements = {
@@ -69,6 +61,7 @@ const elements = {
   textSignInLiveDistance: document.getElementById('textSignInLiveDistance'),
   textSignInLiveAccuracy: document.getElementById('textSignInLiveAccuracy'),
   btnSignInCheckLocation: document.getElementById('btnSignInCheckLocation'),
+  btnSignInSimulateCampus: document.getElementById('btnSignInSimulateCampus'),
   btnSignInRetryLocation: document.getElementById('btnSignInRetryLocation'),
   textCheckLocationBtn: document.getElementById('textCheckLocationBtn'),
   btnStandaloneSignInSubmit: document.getElementById('btnStandaloneSignInSubmit'),
@@ -78,6 +71,15 @@ const elements = {
   textSignInAlert: document.getElementById('textSignInAlert'),
   gridStandaloneQuickAccounts: document.getElementById('gridStandaloneQuickAccounts'),
 
+  // Student Logout & Checkout Confirmation Modal
+  logoutConfirmModal: document.getElementById('logoutConfirmModal'),
+  btnCloseLogoutModal: document.getElementById('btnCloseLogoutModal'),
+  btnLogoutWithGps: document.getElementById('btnLogoutWithGps'),
+  btnLogoutDirectOnly: document.getElementById('btnLogoutDirectOnly'),
+  btnCancelLogout: document.getElementById('btnCancelLogout'),
+  logoutModalStatusBox: document.getElementById('logoutModalStatusBox'),
+  logoutModalStatusText: document.getElementById('logoutModalStatusText'),
+
   // Desktop Header User Session & Actions
   headerUserSessionBadge: document.getElementById('headerUserSessionBadge'),
   hdrUserAvatar: document.getElementById('hdrUserAvatar'),
@@ -85,26 +87,26 @@ const elements = {
   hdrUserRole: document.getElementById('hdrUserRole'),
   hdrBtnAction: document.getElementById('hdrBtnAction'),
 
-  // Navigation Tabs
+  // Navigation Tabs & Views
   tabNavLeaderboard: document.getElementById('tabNavLeaderboard'),
   tabNavAttendance: document.getElementById('tabNavAttendance'),
   tabNavAttendanceLabel: document.getElementById('tabNavAttendanceLabel'),
-  tabNavAdminAttendance: document.getElementById('tabNavAdminAttendance'),
-  tabNavSystemLab: document.getElementById('tabNavSystemLab'),
-
-  // Views
   viewLeaderboard: document.getElementById('viewLeaderboard'),
   viewAttendance: document.getElementById('viewAttendance'),
-  viewAdminAttendance: document.getElementById('viewAdminAttendance'),
-  viewSystemDesignLab: document.getElementById('viewSystemDesignLab'),
 
-  // Lab Sub-modules
-  btnLabModuleCaching: document.getElementById('btnLabModuleCaching'),
-  btnLabModuleLb: document.getElementById('btnLabModuleLb'),
-  moduleCardCaching: document.getElementById('moduleCardCaching'),
-  moduleCardLb: document.getElementById('moduleCardLb'),
-  cachingSimMount: document.getElementById('cachingSimMount'),
-  lbSimMount: document.getElementById('lbSimMount'),
+  // Attendance Sheet Filter & Mentor Controls
+  attSheetDatePicker: document.getElementById('attSheetDatePicker'),
+  btnFilterToday: document.getElementById('btnFilterToday'),
+  btnFilterAllDates: document.getElementById('btnFilterAllDates'),
+  btnDownloadAttendanceCsv: document.getElementById('btnDownloadAttendanceCsv'),
+  attSheetMetricCohort: document.getElementById('attSheetMetricCohort'),
+  attSheetMetricCheckedIn: document.getElementById('attSheetMetricCheckedIn'),
+  attSheetMetricCompleted: document.getElementById('attSheetMetricCompleted'),
+  attSheetMetricDate: document.getElementById('attSheetMetricDate'),
+  allStudentsAttendanceTableBody: document.getElementById('allStudentsAttendanceTableBody'),
+  geofenceAdminDrawer: document.getElementById('geofenceAdminDrawer'),
+  headerGeofenceDrawerToggle: document.getElementById('headerGeofenceDrawerToggle'),
+  bannerEarlyBirdPointsChip: document.getElementById('bannerEarlyBirdPointsChip'),
 
   // Header Controls
   themeDarkBtn: document.getElementById('btnThemeDark'),
@@ -252,8 +254,8 @@ function initDashboard() {
   setLoginRole('student');
   renderQuickAccountsGrid();
   updateLocationStateUI(attendanceService.locationVerificationState, attendanceService.lastVerificationResult);
-  if (elements.adminAttendanceDatePicker) {
-    elements.adminAttendanceDatePicker.value = selectedAdminDate;
+  if (elements.attSheetDatePicker) {
+    elements.attSheetDatePicker.value = selectedAttendanceDate;
   }
   renderAll();
 }
@@ -377,88 +379,112 @@ function renderAll() {
 function renderDesktopPodium(rankedList) {
   if (!elements.desktopPodiumRow) return;
 
-  const officialOnly = rankedList.filter(s => !s.is_test_account && s.id !== 'std-dummy');
-  const top3 = officialOnly.slice(0, 3);
-  const rank1 = top3[0] || { student_name: 'No student', total_points: 0, cumulative_points: 0, percentage: 0, initials: '--', id: '', avatarBg: '#6c5ce7' };
-  const rank2 = top3[1] || { student_name: 'No student', total_points: 0, cumulative_points: 0, percentage: 0, initials: '--', id: '', avatarBg: '#5748cd' };
-  const rank3 = top3[2] || { student_name: 'No student', total_points: 0, cumulative_points: 0, percentage: 0, initials: '--', id: '', avatarBg: '#4736b2' };
+  const officialOnly = rankedList.filter(s => !s.is_test_account && s.id !== 'std-dummy' && s.id !== 'std-demo');
+  const studentsWithPoints = officialOnly.filter(s => (s.cumulative_points || s.total_points) > 0);
+
+  // If all points are zero, do not display any student's name on the Top Performers Podium
+  if (studentsWithPoints.length === 0) {
+    elements.desktopPodiumRow.innerHTML = `
+      <div class="podium-empty-notice" style="grid-column: 1 / -1; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.25rem 1.5rem; text-align: center; background: rgba(30, 41, 59, 0.35); border: 1px dashed rgba(255, 255, 255, 0.12); border-radius: 16px; margin: 0.5rem 0 1.25rem 0;">
+        <div style="margin-bottom: 0.5rem; color: #fbbf24;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+            <path d="M4 22h16"/>
+            <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+            <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+            <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+          </svg>
+        </div>
+        <div style="font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.35rem;">Top Performers Podium</div>
+        <div style="font-size: 0.85rem; color: var(--text-muted); max-width: 440px; line-height: 1.5;">
+          All student scores are currently at 0 points. Top performer positions will appear here once students check in or earn evaluation marks.
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const rank1 = studentsWithPoints[0] || null;
+  const rank2 = studentsWithPoints[1] || null;
+  const rank3 = studentsWithPoints[2] || null;
 
   elements.desktopPodiumRow.innerHTML = `
     <!-- Rank 2: Left Medium Height Podium -->
-    <div class="podium-pedestal-col rank-left-2" data-student-id="${rank2.id}" title="Rank #2: ${escapeHtml(rank2.student_name)} (Click to view scores)">
+    <div class="podium-pedestal-col rank-left-2 ${!rank2 ? 'podium-awaiting' : ''}" data-student-id="${rank2 ? rank2.id : ''}" title="${rank2 ? `Rank #2: ${escapeHtml(rank2.student_name)}` : 'Awaiting Rank #2 Winner'}">
       <div class="podium-avatar-wrapper">
-        <div class="podium-avatar-circle" style="background: ${rank2.avatarBg};">
-          ${rank2.initials}
+        <div class="podium-avatar-circle" style="background: ${rank2 ? rank2.avatarBg : '#334155'};">
+          ${rank2 ? rank2.initials : '--'}
         </div>
         <div class="podium-medal-badge" title="Silver Medal">
           ${ICONS.medalSilver}
         </div>
       </div>
-      <div class="podium-name-text">${escapeHtml(rank2.student_name)}</div>
+      <div class="podium-name-text">${rank2 ? escapeHtml(rank2.student_name) : '<span style="color: var(--text-muted);">Awaiting Winner</span>'}</div>
       <div class="podium-points-pill" title="Cumulative Score">
         ${ICONS.lightning}
-        <span>${rank2.cumulative_points || rank2.total_points} pts</span>
+        <span>${rank2 ? (rank2.cumulative_points || rank2.total_points) : 0} pts</span>
       </div>
       <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.15rem;">
-        Base: ${rank2.base_points || rank2.total_points}/115 (${rank2.percentage}%)
+        ${rank2 ? `Base: ${rank2.base_points || rank2.total_points}/${MAX_SCORE} (${rank2.percentage}%)` : '--'}
       </div>
       <div class="podium-3d-block">
         <span class="podium-3d-number">2</span>
         <div class="podium-block-progress">
-          <div class="podium-block-fill" style="width: ${rank2.percentage}%;"></div>
+          <div class="podium-block-fill" style="width: ${rank2 ? rank2.percentage : 0}%;"></div>
         </div>
       </div>
     </div>
 
     <!-- Rank 1: Center Tallest Podium with Floating Vector Crown -->
-    <div class="podium-pedestal-col rank-center-1" data-student-id="${rank1.id}" title="Rank #1: ${escapeHtml(rank1.student_name)} (Click to view scores)">
+    <div class="podium-pedestal-col rank-center-1 ${!rank1 ? 'podium-awaiting' : ''}" data-student-id="${rank1 ? rank1.id : ''}" title="${rank1 ? `Rank #1: ${escapeHtml(rank1.student_name)}` : 'Awaiting Rank #1 Winner'}">
       ${ICONS.crown}
       <div class="podium-avatar-wrapper">
-        <div class="podium-avatar-circle" style="background: ${rank1.avatarBg};">
-          ${rank1.initials}
+        <div class="podium-avatar-circle" style="background: ${rank1 ? rank1.avatarBg : '#334155'};">
+          ${rank1 ? rank1.initials : '--'}
         </div>
         <div class="podium-medal-badge" title="Gold Medal">
           ${ICONS.medalGold}
         </div>
       </div>
-      <div class="podium-name-text">${escapeHtml(rank1.student_name)}</div>
+      <div class="podium-name-text">${rank1 ? escapeHtml(rank1.student_name) : '<span style="color: var(--text-muted);">Awaiting Winner</span>'}</div>
       <div class="podium-points-pill" style="background: rgba(203, 245, 58, 0.2); border-color: var(--accent-lime);" title="Cumulative Score">
         ${ICONS.lightning}
-        <span style="color: var(--accent-lime);">${rank1.cumulative_points || rank1.total_points} pts</span>
+        <span style="color: var(--accent-lime);">${rank1 ? (rank1.cumulative_points || rank1.total_points) : 0} pts</span>
       </div>
       <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.15rem;">
-        Base: ${rank1.base_points || rank1.total_points}/115 (${rank1.percentage}%)
+        ${rank1 ? `Base: ${rank1.base_points || rank1.total_points}/${MAX_SCORE} (${rank1.percentage}%)` : '--'}
       </div>
       <div class="podium-3d-block">
         <span class="podium-3d-number">1</span>
         <div class="podium-block-progress">
-          <div class="podium-block-fill" style="width: ${rank1.percentage}%;"></div>
+          <div class="podium-block-fill" style="width: ${rank1 ? rank1.percentage : 0}%;"></div>
         </div>
       </div>
     </div>
 
     <!-- Rank 3: Right Shorter Podium -->
-    <div class="podium-pedestal-col rank-right-3" data-student-id="${rank3.id}" title="Rank #3: ${escapeHtml(rank3.student_name)} (Click to view scores)">
+    <div class="podium-pedestal-col rank-right-3 ${!rank3 ? 'podium-awaiting' : ''}" data-student-id="${rank3 ? rank3.id : ''}" title="${rank3 ? `Rank #3: ${escapeHtml(rank3.student_name)}` : 'Awaiting Rank #3 Winner'}">
       <div class="podium-avatar-wrapper">
-        <div class="podium-avatar-circle" style="background: ${rank3.avatarBg};">
-          ${rank3.initials}
+        <div class="podium-avatar-circle" style="background: ${rank3 ? rank3.avatarBg : '#334155'};">
+          ${rank3 ? rank3.initials : '--'}
         </div>
         <div class="podium-medal-badge" title="Bronze Medal">
           ${ICONS.medalBronze}
         </div>
       </div>
-      <div class="podium-name-text">${escapeHtml(rank3.student_name)}</div>
+      <div class="podium-name-text">${rank3 ? escapeHtml(rank3.student_name) : '<span style="color: var(--text-muted);">Awaiting Winner</span>'}</div>
       <div class="podium-points-pill" title="Cumulative Score">
         ${ICONS.lightning}
-        <span>${rank3.cumulative_points || rank3.total_points} pts</span>
+        <span>${rank3 ? (rank3.cumulative_points || rank3.total_points) : 0} pts</span>
       </div>
       <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.15rem;">
-        Base: ${rank3.base_points || rank3.total_points}/115 (${rank3.percentage}%)
+        ${rank3 ? `Base: ${rank3.base_points || rank3.total_points}/${MAX_SCORE} (${rank3.percentage}%)` : '--'}
       </div>
       <div class="podium-3d-block">
         <span class="podium-3d-number">3</span>
         <div class="podium-block-progress">
-          <div class="podium-block-fill" style="width: ${rank3.percentage}%;"></div>
+          <div class="podium-block-fill" style="width: ${rank3 ? rank3.percentage : 0}%;"></div>
         </div>
       </div>
     </div>
@@ -500,8 +526,8 @@ function renderDesktopRows(rankedList) {
     let rankDisplayHtml = `<span class="row-rank-number">${student.rank}</span>`;
     let ringClass = '';
 
-    if (student.is_test_account || student.id === 'std-dummy') {
-      rankDisplayHtml = `<span class="row-rank-number" style="font-size: 0.65rem; color: #fbbf24; background: rgba(245, 158, 11, 0.15); padding: 0.2rem 0.4rem; border-radius: 4px; font-weight: 800;">TEST</span>`;
+    if (student.is_test_account || student.id === 'std-dummy' || student.id === 'std-demo') {
+      rankDisplayHtml = `<span class="row-rank-number" style="font-size: 0.65rem; color: #34d399; background: rgba(16, 185, 129, 0.15); padding: 0.2rem 0.4rem; border-radius: 4px; font-weight: 800;">DEMO</span>`;
     } else if (student.rank === 1) {
       rankDisplayHtml = `<div class="row-medal-icon gold" title="Rank 1: Gold">${ICONS.medalGold}</div>`;
       ringClass = 'gold-ring';
@@ -516,7 +542,9 @@ function renderDesktopRows(rankedList) {
     // Attendance Badges
     const att = student.attendance_summary || attendanceService.getStudentAttendanceSummary(student.id);
     let badgesHtml = '';
-    if (student.is_test_account || student.id === 'std-dummy') {
+    if (student.id === 'std-demo') {
+      badgesHtml += `<span style="display: inline-flex; align-items: center; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 12px;">Demo Account</span>`;
+    } else if (student.is_test_account || student.id === 'std-dummy') {
       badgesHtml += `<span style="display: inline-flex; align-items: center; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 12px;">Dev Test Account</span>`;
     }
     if (att.earlyBirdWinsCount > 0) {
@@ -606,12 +634,21 @@ function renderDesktopRows(rankedList) {
 function renderQuickAccountsGrid() {
   if (!elements.gridStandaloneQuickAccounts) return;
 
-  const studentChips = STUDENT_ACCOUNTS.map(acc => `
-    <button type="button" class="quick-account-chip ${acc.is_test_account ? 'test-account' : ''}" data-role="student" data-name="${escapeHtml(acc.student_name)}" data-identifier="${acc.email}" data-password="${acc.is_test_account ? '12345678' : (acc.defaultPassword || '')}" data-test="${acc.is_test_account ? 'true' : 'false'}" title="${acc.is_test_account ? 'Dummy Student (Test Account): Subject to same real GPS verification' : `Student: ${escapeHtml(acc.student_name)} (${acc.student_id})`}">
-      <span class="quick-chip-dot" style="${acc.is_test_account ? 'background: #f59e0b;' : ''}"></span>
-      <span style="${acc.is_test_account ? 'color: #fbbf24; font-weight: 800;' : ''}">${escapeHtml(acc.student_name)}${acc.is_test_account ? ' [TEST]' : ''}</span>
-    </button>
-  `).join('');
+  const studentChips = STUDENT_ACCOUNTS.map(acc => {
+    const isDemo = acc.student_id === 'std-demo';
+    const isTest = acc.is_test_account;
+    const dotColor = isDemo ? '#10b981' : (isTest ? '#f59e0b' : '');
+    const textColor = isDemo ? '#34d399' : (isTest ? '#fbbf24' : '');
+    const labelTag = isDemo ? ' [DEMO]' : (isTest ? ' [TEST]' : '');
+    const chipClass = isDemo ? 'quick-account-chip demo-account' : (isTest ? 'quick-account-chip test-account' : 'quick-account-chip');
+
+    return `
+      <button type="button" class="${chipClass}" data-role="student" data-id="${acc.student_id}" data-name="${escapeHtml(acc.student_name)}" data-identifier="${acc.email}" data-password="${isTest ? '12345678' : (acc.defaultPassword || '')}" data-test="${isTest ? 'true' : 'false'}" title="${isDemo ? 'Demo Student: Click to autofill demo credentials' : (isTest ? 'Dummy Test Account' : `Student: ${escapeHtml(acc.student_name)} (${acc.student_id})`)}">
+        <span class="quick-chip-dot" style="${dotColor ? `background: ${dotColor};` : ''}"></span>
+        <span style="${textColor ? `color: ${textColor}; font-weight: 800;` : ''}">${escapeHtml(acc.student_name)}${labelTag}</span>
+      </button>
+    `;
+  }).join('');
 
   const mentorChips = MENTOR_ACCOUNTS.map(acc => `
     <button type="button" class="quick-account-chip mentor" data-role="mentor" data-name="${escapeHtml(acc.student_name)}" data-identifier="${acc.email}" data-password="${acc.defaultPassword}" title="Mentor: ${escapeHtml(acc.student_name)} (${acc.role})">
@@ -625,6 +662,7 @@ function renderQuickAccountsGrid() {
   elements.gridStandaloneQuickAccounts.querySelectorAll('.quick-account-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       const role = chip.getAttribute('data-role');
+      const stdId = chip.getAttribute('data-id');
       const name = chip.getAttribute('data-name');
       const iden = chip.getAttribute('data-identifier');
       const pass = chip.getAttribute('data-password');
@@ -641,7 +679,9 @@ function renderQuickAccountsGrid() {
       updateLocationStateUI(attendanceService.locationVerificationState, attendanceService.lastVerificationResult);
 
       if (role === 'student') {
-        if (isTest) {
+        if (stdId === 'std-demo') {
+          showStandaloneAuthFeedback(`Selected Demo Student (demo@gmail.com / 12345678). Click "Verify Campus GPS (Lab / Test)" or "Check My Location", then click "Sign In & Mark Attendance"!`, 'idle');
+        } else if (isTest) {
           showStandaloneAuthFeedback(`Selected Dummy Student (Test Account: dummy@gmail.com). Subject to strict real GPS verification (no bypass). Click "Check My Location" to proceed.`, 'idle');
         } else {
           showStandaloneAuthFeedback(`Selected ${name} (${iden}). Mandatory GPS verification required: click "Check My Location" to proceed.`, 'idle');
@@ -667,9 +707,13 @@ function setLoginRole(role) {
     elements.btnRoleMentor?.classList.remove('active');
 
     if (elements.fieldSignInFullName) elements.fieldSignInFullName.style.display = 'flex';
-    if (elements.inputSignInFullName) elements.inputSignInFullName.required = true;
+    if (elements.inputSignInFullName) {
+      elements.inputSignInFullName.required = true;
+      elements.inputSignInFullName.placeholder = 'Enter your full name';
+    }
     if (elements.labelSignInEmail) elements.labelSignInEmail.textContent = 'Student Email Address';
-    if (elements.inputSignInEmail) elements.inputSignInEmail.placeholder = 'e.g. samyuktha@pilotstudy.snsct.edu.in';
+    if (elements.inputSignInEmail) elements.inputSignInEmail.placeholder = 'Enter your email address';
+    if (elements.inputSignInPassword) elements.inputSignInPassword.placeholder = 'Enter your password';
     if (elements.panelSignInGps) elements.panelSignInGps.style.display = 'flex';
 
     const isVerified = attendanceService.locationVerificationState === LOCATION_STATES.VERIFIED;
@@ -692,7 +736,8 @@ function setLoginRole(role) {
     if (elements.fieldSignInFullName) elements.fieldSignInFullName.style.display = 'none';
     if (elements.inputSignInFullName) elements.inputSignInFullName.required = false;
     if (elements.labelSignInEmail) elements.labelSignInEmail.textContent = 'Mentor / Administrator Email';
-    if (elements.inputSignInEmail) elements.inputSignInEmail.placeholder = 'e.g. akaakashsvg63@gmail.com';
+    if (elements.inputSignInEmail) elements.inputSignInEmail.placeholder = 'Enter your email address';
+    if (elements.inputSignInPassword) elements.inputSignInPassword.placeholder = 'Enter your password';
     if (elements.panelSignInGps) elements.panelSignInGps.style.display = 'none';
 
     if (elements.btnStandaloneSignInSubmit) {
@@ -747,16 +792,13 @@ function syncAuthStateView() {
 
   // Role Navigation Adaptations
   if (authService.isMentorOrAdmin()) {
-    if (elements.tabNavAdminAttendance) elements.tabNavAdminAttendance.style.display = 'flex';
-    if (elements.tabNavAttendanceLabel) elements.tabNavAttendanceLabel.textContent = 'Attendance Overview';
-    if (elements.cardStudentCheckoutAction) elements.cardStudentCheckoutAction.style.display = 'none';
+    if (elements.tabNavAttendanceLabel) elements.tabNavAttendanceLabel.textContent = 'Attendance (Sheet & Mentor)';
+    if (elements.btnDownloadAttendanceCsv) elements.btnDownloadAttendanceCsv.style.display = 'inline-flex';
+    if (elements.geofenceAdminDrawer) elements.geofenceAdminDrawer.style.display = 'block';
   } else {
-    if (elements.tabNavAdminAttendance) elements.tabNavAdminAttendance.style.display = 'none';
-    if (elements.tabNavAttendanceLabel) elements.tabNavAttendanceLabel.textContent = 'My Attendance';
-    if (elements.cardStudentCheckoutAction) elements.cardStudentCheckoutAction.style.display = 'flex';
-    if (currentPrimaryTab === 'admin_attendance') {
-      setPrimaryTab('leaderboard');
-    }
+    if (elements.tabNavAttendanceLabel) elements.tabNavAttendanceLabel.textContent = 'Attendance';
+    if (elements.btnDownloadAttendanceCsv) elements.btnDownloadAttendanceCsv.style.display = 'none';
+    if (elements.geofenceAdminDrawer) elements.geofenceAdminDrawer.style.display = 'none';
   }
 }
 
@@ -779,7 +821,12 @@ async function handleStandaloneSignIn(e) {
   const identifier = elements.inputSignInEmail?.value?.trim();
   const password = elements.inputSignInPassword?.value;
 
-  if (activeLoginRole === 'student' && !fullName) {
+  // Auto-detect mentor / admin account if entered
+  const mentorAccount = authService.lookupAccount(identifier, 'mentor');
+  const isMentorAccount = mentorAccount && (mentorAccount.role === 'mentor' || mentorAccount.role === 'admin');
+  const effectiveRole = isMentorAccount ? 'mentor' : activeLoginRole;
+
+  if (effectiveRole === 'student' && !fullName) {
     showStandaloneAuthFeedback('Full Name is required to confirm student identity.', 'error');
     return;
   }
@@ -790,7 +837,7 @@ async function handleStandaloneSignIn(e) {
   }
 
   const isGpsVerified = attendanceService.locationVerificationState === LOCATION_STATES.VERIFIED;
-  if (activeLoginRole === 'student' && !isGpsVerified) {
+  if (effectiveRole === 'student' && !isGpsVerified) {
     showStandaloneAuthFeedback('Mandatory location verification required. Please click "Check My Location" first.', 'error');
     return;
   }
@@ -802,7 +849,7 @@ async function handleStandaloneSignIn(e) {
     fullName,
     identifier,
     password,
-    role: activeLoginRole,
+    role: effectiveRole,
     isGpsVerified
   });
 
@@ -817,10 +864,14 @@ async function handleStandaloneSignIn(e) {
     showStandaloneAuthFeedback('Credentials verified! Recording authoritative check-in at SNS College of Technology...', 'loading');
     const checkInResult = await attendanceService.performCheckIn(result.user.student_id);
 
-    if (checkInResult.earlyBirdAwarded) {
-      showStandaloneAuthFeedback(`Congratulations! ${result.user.student_name} earned the Early Bird Award (+10 pts) for being first to check in today!`, 'success');
+    if (checkInResult.earlyBirdAwarded && checkInResult.nightOwlAwarded) {
+      showStandaloneAuthFeedback(`Attendance Marked! Awarded Early Bird (+10 pts) and Late Night Owl (+10 pts) automatically!`, 'success');
+    } else if (checkInResult.earlyBirdAwarded) {
+      showStandaloneAuthFeedback(`Attendance Marked! Early Bird Award (+10 pts) automatically auto-filled!`, 'success');
+    } else if (checkInResult.nightOwlAwarded) {
+      showStandaloneAuthFeedback(`Attendance Marked! Late Night Owl Award (+10 pts) automatically auto-filled!`, 'success');
     } else {
-      showStandaloneAuthFeedback(`Check-in verified! Logged in at ${formatISTTime(checkInResult.record?.login_at)}. Welcome to Pilot Study.`, 'success');
+      showStandaloneAuthFeedback(`Attendance Marked! Logged in at ${formatISTTime(checkInResult.record?.login_at)}. Attendance points tracked live.`, 'success');
     }
   } else {
     showStandaloneAuthFeedback(`Welcome ${result.user.student_name} (Mentor). Access granted.`, 'success');
@@ -886,75 +937,114 @@ async function handleStudentCheckOutAndLogout() {
     return;
   }
 
-  // 3. Students pending checkout: prompt choice for GPS check-out or direct sign out
-  const wantGpsCheckout = confirm(
-    'Student Sign Out & Attendance Check-Out:\n\n' +
-    '• Click [OK] to verify your GPS location at SNS College of Technology and complete attendance check-out (+ Late Night Owl if after 6:00 PM).\n\n' +
-    '• Click [Cancel] to sign out of your account directly without recording attendance check-out.'
-  );
+  // 3. Students pending checkout: open custom logout confirmation modal
+  openLogoutConfirmModal();
+}
 
-  if (!wantGpsCheckout) {
-    if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = true;
-    try {
-      await authService.signOut();
-      attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
-      syncAuthStateView();
-      showStandaloneAuthFeedback('Signed out without attendance checkout.', 'idle');
-    } finally {
-      if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = false;
-    }
+/**
+ * Open Student Sign Out & Check-Out Modal Dialog
+ */
+function openLogoutConfirmModal() {
+  if (!elements.logoutConfirmModal) return;
+  if (elements.logoutModalStatusBox) {
+    elements.logoutModalStatusBox.style.display = 'none';
+    elements.logoutModalStatusBox.className = 'att-status-feedback-box idle';
+  }
+  if (elements.btnLogoutWithGps) elements.btnLogoutWithGps.disabled = false;
+  if (elements.btnCancelLogout) elements.btnCancelLogout.disabled = false;
+  elements.logoutConfirmModal.classList.add('open');
+  elements.logoutConfirmModal.style.display = 'flex';
+}
+
+/**
+ * Close Student Sign Out & Check-Out Modal Dialog
+ */
+function closeLogoutConfirmModal() {
+  if (!elements.logoutConfirmModal) return;
+  elements.logoutConfirmModal.classList.remove('open');
+  elements.logoutConfirmModal.style.display = 'none';
+}
+
+/**
+ * Show status feedback inside the logout modal
+ */
+function showLogoutModalStatus(msg, type = 'idle') {
+  if (!elements.logoutModalStatusBox || !elements.logoutModalStatusText) return;
+  elements.logoutModalStatusBox.style.display = 'flex';
+  elements.logoutModalStatusBox.className = `att-status-feedback-box ${type}`;
+  elements.logoutModalStatusText.innerHTML = msg;
+}
+
+/**
+ * Student modal choice: Verify GPS location at SNSCT & complete checkout (Mandatory Gate)
+ */
+async function handleModalGpsCheckout() {
+  const authUser = authService.getCurrentStudent();
+  if (!authUser) {
+    closeLogoutConfirmModal();
     return;
   }
 
-  // Proceed with GPS verification for checkout
-  showCheckoutFeedback('Acquiring fresh browser GPS location at SNS College of Technology for checkout...', 'loading');
-  if (elements.btnStudentDashboardCheckout) elements.btnStudentDashboardCheckout.disabled = true;
-  if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = true;
+  showLogoutModalStatus('Acquiring fresh GPS location at SNS College of Technology for check-out...', 'loading');
+  if (elements.btnLogoutWithGps) elements.btnLogoutWithGps.disabled = true;
+  if (elements.btnCancelLogout) elements.btnCancelLogout.disabled = true;
 
   try {
     const locResult = await attendanceService.verifyCurrentLocation();
     if (!locResult.success) {
       const errMsg = locResult.details?.message || locResult.message || 'Checkout rejected: GPS verification failed. You must be physically on campus.';
-      showCheckoutFeedback(errMsg, 'error');
-      
-      const forceLogout = confirm(
-        `GPS Check-Out Failed:\n${errMsg}\n\nDo you want to sign out of the application anyway?`
-      );
-      if (forceLogout) {
-        await authService.signOut();
-        attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
-        syncAuthStateView();
-        showStandaloneAuthFeedback('Signed out without attendance checkout.', 'idle');
+      showLogoutModalStatus(`
+        <div style="font-weight: 700; color: #f87171;">Location Verification Mandatory:</div>
+        <div style="font-size: 0.8rem; margin: 0.35rem 0; line-height: 1.4;">${escapeHtml(errMsg)}</div>
+        <div style="font-size: 0.74rem; color: var(--text-muted); margin-bottom: 0.5rem;">Physical presence within SNS College of Technology campus is mandatory to complete check-out and sign out.</div>
+        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+          <button type="button" id="btnModalRetryGps" class="admin-btn admin-btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">
+            Retry GPS Verification
+          </button>
+        </div>
+      `, 'error');
+
+      const btnRetry = document.getElementById('btnModalRetryGps');
+      if (btnRetry) {
+        btnRetry.addEventListener('click', handleModalGpsCheckout);
       }
       return;
     }
 
-    showCheckoutFeedback('Location verified! Recording verified checkout in Supabase...', 'loading');
+    showLogoutModalStatus('Location verified! Recording official check-out timestamp...', 'loading');
     const checkOutResult = await attendanceService.performCheckOut(authUser.student_id);
 
     let notice = 'Checked out successfully.';
     if (checkOutResult.success) {
       notice = `Checked out at ${formatISTTime(checkOutResult.record?.logout_at)}.`;
       if (checkOutResult.nightOwlAwarded) {
-        notice += ` You qualified for the Late Night Owl award (+10 pts)!`;
+        notice += ' You qualified for the Late Night Owl award (+10 pts)!';
       }
     }
 
     await authService.signOut();
     attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
+    closeLogoutConfirmModal();
     syncAuthStateView();
     showStandaloneAuthFeedback(`${notice} Signed out securely.`, 'success');
   } catch (err) {
     console.error('[auth] Checkout exception:', err);
-    const forceLogout = confirm(`Error during check-out: ${err.message}\n\nSign out anyway?`);
-    if (forceLogout) {
-      await authService.signOut();
-      attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
-      syncAuthStateView();
+    showLogoutModalStatus(`
+      <div style="font-weight: 700; color: #f87171;">Check-Out Error:</div>
+      <div style="font-size: 0.8rem; margin: 0.35rem 0; line-height: 1.4;">${escapeHtml(err.message)}</div>
+      <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+        <button type="button" id="btnModalRetryGpsErr" class="admin-btn admin-btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">
+          Retry GPS Verification
+        </button>
+      </div>
+    `, 'error');
+    const btnRetryErr = document.getElementById('btnModalRetryGpsErr');
+    if (btnRetryErr) {
+      btnRetryErr.addEventListener('click', handleModalGpsCheckout);
     }
   } finally {
-    if (elements.btnStudentDashboardCheckout) elements.btnStudentDashboardCheckout.disabled = false;
-    if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = false;
+    if (elements.btnLogoutWithGps) elements.btnLogoutWithGps.disabled = false;
+    if (elements.btnCancelLogout) elements.btnCancelLogout.disabled = false;
   }
 }
 
@@ -984,6 +1074,15 @@ async function handleCheckMyLocation() {
   } else {
     showStandaloneAuthFeedback(result.message || 'Location verification rejected.', 'error');
   }
+}
+
+/**
+ * Handle Campus Simulation (Testing / Lab helper)
+ */
+function handleSimulateCampusLocation() {
+  const result = attendanceService.simulateCampusLocation();
+  updateLocationStateUI(attendanceService.locationVerificationState, attendanceService.lastVerificationResult);
+  showStandaloneAuthFeedback(result.message || 'Campus location verified for testing! Sign In enabled.', 'success');
 }
 
 /**
@@ -1158,6 +1257,7 @@ function renderAttendanceDashboard() {
   const authUser = authService.getCurrentStudent();
   if (!authUser) return;
 
+  const isMentor = authService.isMentorOrAdmin();
   activeAttendanceStudentId = authUser.student_id;
   const student = pilotstudyDb.getStudentById(activeAttendanceStudentId);
   const studentName = student?.student_name || authUser.student_name;
@@ -1227,25 +1327,31 @@ function renderAttendanceDashboard() {
     }
   }
 
-  // 5. Today's Daily Awards Showcase
-  const todayEarly = summary.todayEarlyAward;
-  const todayNight = summary.todayNightAward;
+  // Quick Check-out button (Visible for checked-in students)
+  if (elements.btnStudentDashboardCheckout) {
+    elements.btnStudentDashboardCheckout.style.display = (!isMentor && isCheckedIn && !isCheckedOut) ? 'inline-flex' : 'none';
+  }
+
+  // 5. Today's Daily Awards Showcase (Arrival order up to 20 pts & Night Owl 10 pts)
+  const todayAwards = attendanceService.dailyAwards.filter(a => a.attendance_date === getTodayISTDateString());
+  const todayEarly = todayAwards.find(a => a.category === 'early_bird');
+  const todayNight = todayAwards.find(a => a.category === 'night_owl');
 
   if (elements.todayEarlyBirdWinner) {
     if (todayEarly && todayEarly.status === 'awarded' && todayEarly.winning_student_id) {
       const winner = pilotstudyDb.getStudentById(todayEarly.winning_student_id);
-      elements.todayEarlyBirdWinner.textContent = `${winner?.student_name || todayEarly.winning_student_id} (Winner)`;
-      if (elements.todayEarlyBirdTime) elements.todayEarlyBirdTime.textContent = `Check-in: ${formatISTTime(todayEarly.winning_timestamp)}`;
+      elements.todayEarlyBirdWinner.textContent = `${winner?.student_name || todayEarly.winning_student_id} (1st Arrival • +20 pts)`;
+      if (elements.todayEarlyBirdTime) elements.todayEarlyBirdTime.textContent = `Check-in: ${formatISTTime(todayEarly.winning_timestamp)} • Subsequent arrivals earned 19, 18, 17... pts`;
     } else {
-      elements.todayEarlyBirdWinner.textContent = 'Evaluating earliest check-in...';
-      if (elements.todayEarlyBirdTime) elements.todayEarlyBirdTime.textContent = 'Earliest verified check-in of the day';
+      elements.todayEarlyBirdWinner.textContent = 'Evaluating arrival order...';
+      if (elements.todayEarlyBirdTime) elements.todayEarlyBirdTime.textContent = '1st check-in gets 20 pts, each subsequent gets 1 pt less (2nd: 19, 3rd: 18...)';
     }
   }
 
   if (elements.todayNightOwlWinner) {
     if (todayNight && todayNight.status === 'awarded' && todayNight.winning_student_id) {
       const winner = pilotstudyDb.getStudentById(todayNight.winning_student_id);
-      elements.todayNightOwlWinner.textContent = `${winner?.student_name || todayNight.winning_student_id} (Winner)`;
+      elements.todayNightOwlWinner.textContent = `${winner?.student_name || todayNight.winning_student_id} (Winner • +10 pts)`;
       if (elements.todayNightOwlTime) elements.todayNightOwlTime.textContent = `Checkout: ${formatISTTime(todayNight.winning_timestamp)}`;
     } else {
       const now = new Date();
@@ -1255,156 +1361,220 @@ function renderAttendanceDashboard() {
     }
   }
 
-  // 6. Student Score Overview (Private to Authenticated Student)
-  if (elements.attStudentCumScore) elements.attStudentCumScore.textContent = student ? (student.cumulative_points || student.total_points) : '--';
-  if (elements.attStudentBaseScore) elements.attStudentBaseScore.textContent = student ? `${student.base_points || student.total_points} / ${MAX_SCORE}` : '--';
-  if (elements.attStudentBasePct) elements.attStudentBasePct.textContent = student ? `${student.percentage}% Base Period` : '--';
-  if (elements.attStudentAttTotalPts) elements.attStudentAttTotalPts.textContent = `+${summary.totalAttendancePoints} pts`;
-  if (elements.attStudentAwardsSummary) {
-    elements.attStudentAwardsSummary.textContent = `${summary.earlyBirdWinsCount} Early Bird • ${summary.nightOwlWinsCount} Night Owl`;
+  // 6. Mentor Permissions and Controls
+  if (elements.btnDownloadAttendanceCsv) {
+    elements.btnDownloadAttendanceCsv.style.display = isMentor ? 'inline-flex' : 'none';
+  }
+  if (elements.geofenceAdminDrawer) {
+    elements.geofenceAdminDrawer.style.display = isMentor ? 'block' : 'none';
+  }
+  if (elements.btnAdminRecalculate) {
+    elements.btnAdminRecalculate.style.display = isMentor ? 'inline-flex' : 'none';
   }
 
-  // 7. Historical Daily Awards Table
-  if (elements.historicalAwardsTableBody) {
-    elements.historicalAwardsTableBody.innerHTML = attendanceService.dailyAwards.map(a => {
-      const winner = a.winning_student_id ? pilotstudyDb.getStudentById(a.winning_student_id) : null;
-      const winnerName = winner ? winner.student_name : (a.winning_student_id || 'No Winner');
-      const catName = a.category === 'early_bird' ? 'Early Bird' : 'Late Night Owl';
-      const catClass = a.category === 'early_bird' ? 'early' : 'night';
-
-      return `
-        <tr>
-          <td><strong>${a.attendance_date}</strong></td>
-          <td><span class="award-badge-pill ${catClass}">${catName}</span></td>
-          <td>${escapeHtml(winnerName)}</td>
-          <td><strong style="color: var(--gold);">${a.awarded_points > 0 ? `+${a.awarded_points} pts` : '0 pts'}</strong></td>
-          <td>${formatISTTime(a.winning_timestamp)}</td>
-          <td style="color: var(--text-secondary); font-size: 0.78rem;">${escapeHtml(a.scoring_reason || '')}</td>
-        </tr>
-      `;
-    }).join('');
-  }
-}
-
-/**
- * Render Administrator Attendance Dashboard View
- */
-function renderAdminAttendanceDashboard() {
-  if (!elements.viewAdminAttendance || elements.viewAdminAttendance.style.display === 'none') return;
-
-  const date = selectedAdminDate || getTodayISTDateString();
+  // 7. All Students Attendance Sheet Table & Filter Handling
   const allStudents = pilotstudyDb.getStudents();
-  const dayRecords = attendanceService.getAttendanceForDate(date);
-  const settings = attendanceService.campusSettings;
+  const filterDate = selectedAttendanceDate || getTodayISTDateString();
+  const isAllDates = filterDate === 'all';
 
-  const earlyWinnerId = attendanceService.dailyAwards.find(
-    a => a.attendance_date === date && a.category === 'early_bird' && a.status === 'awarded'
-  )?.winning_student_id;
+  if (elements.attSheetDatePicker) {
+    elements.attSheetDatePicker.value = isAllDates ? '' : filterDate;
+  }
 
-  const nightWinnerId = attendanceService.dailyAwards.find(
-    a => a.attendance_date === date && a.category === 'night_owl' && a.status === 'awarded'
-  )?.winning_student_id;
+  let tableRowsHtml = '';
+  if (isAllDates) {
+    const allRecords = [...attendanceService.attendanceRecords].sort((a, b) => {
+      if (a.attendance_date !== b.attendance_date) {
+        return b.attendance_date.localeCompare(a.attendance_date);
+      }
+      return (a.arrival_order || 999) - (b.arrival_order || 999);
+    });
 
-  // Metrics
-  const checkedInCount = dayRecords.filter(r => r.login_at).length;
-  const completedCount = dayRecords.filter(r => r.logout_at).length;
+    const checkedInCount = allRecords.filter(r => r.login_at).length;
+    const completedCount = allRecords.filter(r => r.logout_at).length;
 
-  if (elements.adminMetricCheckedIn) elements.adminMetricCheckedIn.textContent = `${checkedInCount} / 20`;
-  if (elements.adminMetricCompleted) elements.adminMetricCompleted.textContent = `${completedCount} / 20`;
+    if (elements.attSheetMetricCohort) elements.attSheetMetricCohort.textContent = `${allStudents.length} Students`;
+    if (elements.attSheetMetricCheckedIn) elements.attSheetMetricCheckedIn.textContent = `${checkedInCount} Sessions`;
+    if (elements.attSheetMetricCompleted) elements.attSheetMetricCompleted.textContent = `${completedCount} Checkouts`;
+    if (elements.attSheetMetricDate) elements.attSheetMetricDate.textContent = `All Records (${allRecords.length})`;
 
-  // Render Table Rows for all 20 students
-  if (elements.adminAttendanceTableBody) {
-    elements.adminAttendanceTableBody.innerHTML = allStudents.map(student => {
+    if (allRecords.length === 0) {
+      tableRowsHtml = `<tr><td colspan="7" style="text-align: center; padding: 2.5rem; color: var(--text-muted); font-size: 0.9rem;">No attendance records found across any dates.</td></tr>`;
+    } else {
+      tableRowsHtml = allRecords.map(rec => {
+        const student = pilotstudyDb.getStudentById(rec.student_id);
+        const name = student?.student_name || rec.student_id;
+        const avatarBg = student?.avatarBg || '#334155';
+
+        const earlyPts = rec.early_bird_points !== undefined ? rec.early_bird_points : (rec.arrival_order ? Math.max(0, 21 - rec.arrival_order) : (rec.is_early_bird ? 10 : 0));
+        const nightPts = rec.night_owl_points !== undefined ? rec.night_owl_points : (rec.is_night_owl ? 10 : 0);
+
+        let arrivalText = '--';
+        if (rec.arrival_order) {
+          const suffix = rec.arrival_order === 1 ? 'st' : rec.arrival_order === 2 ? 'nd' : rec.arrival_order === 3 ? 'rd' : 'th';
+          arrivalText = `<span style="font-weight: 700; color: var(--accent-lime);">#${rec.arrival_order} (${rec.arrival_order}${suffix})</span> • <strong style="color: var(--accent-lime);">+${earlyPts} pts</strong>`;
+        } else if (earlyPts > 0) {
+          arrivalText = `<strong style="color: var(--accent-lime);">+${earlyPts} pts</strong>`;
+        }
+
+        if (nightPts > 0) {
+          arrivalText += ` <span class="award-badge-pill night">+${nightPts} Night Owl</span>`;
+        }
+
+        return `
+          <tr>
+            <td><strong style="color: var(--text-primary);">${rec.attendance_date}</strong></td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 0.55rem;">
+                <div style="width: 28px; height: 28px; border-radius: 50%; background: ${avatarBg}; color: #fff; font-size: 0.72rem; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                  ${getInitials(name)}
+                </div>
+                <div>
+                  <strong style="color: var(--text-primary); display: block; font-size: 0.86rem;">${escapeHtml(name)}</strong>
+                  <span style="font-size: 0.7rem; color: var(--text-muted); display: block;">${rec.student_id}</span>
+                </div>
+              </div>
+            </td>
+            <td>
+              ${rec.login_at ? `<span style="font-weight: 600;">${formatISTTime(rec.login_at)}</span>` : '<span style="color: var(--text-muted);">Not checked in</span>'}
+              ${rec.login_location_verified ? '<span class="geofence-verify-chip verified" style="margin-left: 0.35rem;">GPS Verified</span>' : ''}
+            </td>
+            <td>
+              ${rec.logout_at ? `<span style="font-weight: 600;">${formatISTTime(rec.logout_at)}</span>` : (rec.login_at ? '<span style="color: #fbbf24;">Pending checkout</span>' : '<span style="color: var(--text-muted);">--</span>')}
+              ${rec.logout_location_verified ? '<span class="geofence-verify-chip verified" style="margin-left: 0.35rem;">GPS Verified</span>' : ''}
+            </td>
+            <td>${arrivalText}</td>
+            <td><span style="color: var(--accent-lime); font-weight: 600;">SNS College of Technology (SNS iHub)</span></td>
+            <td>
+              <span class="geofence-verify-chip ${rec.status === 'completed' ? 'verified' : ''}" style="text-transform: capitalize; font-weight: 700;">
+                ${rec.status || 'checked_in'}
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  } else {
+    // Specific date (Today or any selected previous date)
+    const dayRecords = attendanceService.getAttendanceForDate(filterDate);
+    const checkedInCount = dayRecords.filter(r => r.login_at).length;
+    const completedCount = dayRecords.filter(r => r.logout_at).length;
+
+    if (elements.attSheetMetricCohort) elements.attSheetMetricCohort.textContent = `${allStudents.length} Students`;
+    if (elements.attSheetMetricCheckedIn) elements.attSheetMetricCheckedIn.textContent = `${checkedInCount} / ${allStudents.length}`;
+    if (elements.attSheetMetricCompleted) elements.attSheetMetricCompleted.textContent = `${completedCount} / ${allStudents.length}`;
+    if (elements.attSheetMetricDate) {
+      elements.attSheetMetricDate.textContent = filterDate === getTodayISTDateString() ? `Today (${filterDate})` : filterDate;
+    }
+
+    tableRowsHtml = allStudents.map(student => {
       const rec = dayRecords.find(r => r.student_id === student.id);
-      const isEarly = student.id === earlyWinnerId;
-      const isNight = student.id === nightWinnerId;
+      const isCheckedIn = !!rec?.login_at;
+      const isCheckedOut = !!rec?.logout_at;
 
-      let awardBadges = '';
-      if (isEarly) awardBadges += `<span class="award-badge-pill early" style="margin-right: 0.35rem;">Early Bird (+10)</span>`;
-      if (isNight) awardBadges += `<span class="award-badge-pill night">Night Owl (+10)</span>`;
-      if (!awardBadges) awardBadges = '<span style="color: var(--text-muted);">None</span>';
+      let arrivalText = '<span style="color: var(--text-muted);">0 pts</span>';
+      if (rec?.arrival_order) {
+        const suffix = rec.arrival_order === 1 ? 'st' : rec.arrival_order === 2 ? 'nd' : rec.arrival_order === 3 ? 'rd' : 'th';
+        const earlyPts = rec.early_bird_points !== undefined ? rec.early_bird_points : Math.max(0, 21 - rec.arrival_order);
+        arrivalText = `<span style="font-weight: 700; color: var(--accent-lime);">#${rec.arrival_order} (${rec.arrival_order}${suffix})</span> • <strong style="color: var(--accent-lime);">+${earlyPts} pts</strong>`;
+      } else if (rec?.early_bird_points) {
+        arrivalText = `<strong style="color: var(--accent-lime);">+${rec.early_bird_points} pts</strong>`;
+      }
 
-      const poly = settings.boundary_polygon || DEFAULT_CAMPUS_POLYGON;
-      const inside = rec ? isPointInPolygon([rec.login_longitude || 0, rec.login_latitude || 0], poly) : false;
-      const boundaryDist = rec ? (inside ? 0 : calculateMinDistanceToPolygon(rec.login_latitude || 0, rec.login_longitude || 0, poly)) : null;
-      const distDisplay = boundaryDist !== null ? (inside ? '<span style="color: var(--accent-lime); font-weight: 600;">Inside Campus</span>' : `<span style="color: #f87171;">${Math.round(boundaryDist)}m outside</span>`) : '--';
+      if (rec?.night_owl_points) {
+        arrivalText += ` <span class="award-badge-pill night">+${rec.night_owl_points} Night Owl</span>`;
+      }
+
+      const locationText = isCheckedIn
+        ? '<span style="color: var(--accent-lime); font-weight: 600;">SNS College of Technology (SNS iHub)</span>'
+        : '<span style="color: var(--text-muted);">--</span>';
+
+      let statusBadge = '<span style="color: var(--text-muted); font-size: 0.8rem; font-weight: 600;">Absent</span>';
+      if (isCheckedOut) {
+        statusBadge = '<span class="geofence-verify-chip verified" style="font-weight: 700;">Completed</span>';
+      } else if (isCheckedIn) {
+        statusBadge = '<span style="background: rgba(16, 185, 129, 0.15); color: var(--accent-lime); padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700;">Checked In</span>';
+      }
 
       return `
         <tr>
+          <td><strong style="color: var(--text-primary);">${filterDate}</strong></td>
           <td>
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <div style="width: 28px; height: 28px; border-radius: 50%; background: ${student.avatarBg}; color: #fff; font-size: 0.72rem; font-weight: 800; display: flex; align-items: center; justify-content: center;">
+            <div style="display: flex; align-items: center; gap: 0.55rem;">
+              <div style="width: 28px; height: 28px; border-radius: 50%; background: ${student.avatarBg}; color: #fff; font-size: 0.72rem; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                 ${getInitials(student.student_name)}
               </div>
               <div>
-                <strong>${escapeHtml(student.student_name)}</strong>
-                <span style="font-size: 0.72rem; color: var(--text-muted); display: block;">${student.id}</span>
+                <strong style="color: var(--text-primary); display: block; font-size: 0.86rem;">${escapeHtml(student.student_name)}</strong>
+                <span style="font-size: 0.7rem; color: var(--text-muted); display: block;">${student.id}</span>
               </div>
             </div>
           </td>
-          <td>${rec?.login_at ? formatISTTime(rec.login_at) : '<span style="color: var(--text-muted);">Not checked in</span>'}</td>
-          <td>${rec?.login_location_verified ? '<span class="geofence-verify-chip verified">Verified</span>' : '<span style="color: var(--text-muted);">--</span>'}</td>
-          <td>${rec?.logout_at ? formatISTTime(rec.logout_at) : '<span style="color: var(--text-muted);">Pending</span>'}</td>
-          <td>${rec?.logout_location_verified ? '<span class="geofence-verify-chip verified">Verified</span>' : '<span style="color: var(--text-muted);">--</span>'}</td>
-          <td>${distDisplay}</td>
-          <td>${awardBadges}</td>
-          <td><span style="text-transform: capitalize; font-weight: 600; color: ${rec?.status === 'completed' ? '#34d399' : rec?.status === 'checked_in' ? 'var(--accent-lime)' : 'var(--text-muted)'};">${rec?.status || 'absent'}</span></td>
+          <td>
+            ${isCheckedIn ? `<span style="font-weight: 600;">${formatISTTime(rec.login_at)}</span>` : '<span style="color: var(--text-muted);">Not checked in</span>'}
+            ${rec?.login_location_verified ? '<span class="geofence-verify-chip verified" style="margin-left: 0.35rem;">GPS Verified</span>' : ''}
+          </td>
+          <td>
+            ${isCheckedOut ? `<span style="font-weight: 600;">${formatISTTime(rec.logout_at)}</span>` : (isCheckedIn ? '<span style="color: #fbbf24;">Pending checkout</span>' : '<span style="color: var(--text-muted);">--</span>')}
+            ${rec?.logout_location_verified ? '<span class="geofence-verify-chip verified" style="margin-left: 0.35rem;">GPS Verified</span>' : ''}
+          </td>
+          <td>${arrivalText}</td>
+          <td>${locationText}</td>
+          <td>${statusBadge}</td>
         </tr>
       `;
     }).join('');
   }
 
-  // Populate Admin Geofence Settings Inputs
-  if (elements.cfgCampusName) elements.cfgCampusName.value = settings.campus_name || '';
-  if (elements.cfgCrs) elements.cfgCrs.value = settings.crs || 'EPSG:4326 (WGS84)';
-  if (elements.cfgVersion) elements.cfgVersion.value = settings.config_version || '2.1.0';
-  if (elements.cfgApprovedBy) elements.cfgApprovedBy.value = settings.approved_by || 'Aakash (Administrator)';
-  if (elements.cfgAccuracy) elements.cfgAccuracy.value = settings.max_accuracy_meters || 100;
-  if (elements.cfgLatitude) elements.cfgLatitude.value = settings.center_latitude || 11.10043;
-  if (elements.cfgLongitude) elements.cfgLongitude.value = settings.center_longitude || 77.02661;
-  if (elements.cfgRadius) elements.cfgRadius.value = settings.radius_meters || 500;
-  if (elements.cfgPolygon && !elements.cfgPolygon.dataset.userEdited) {
-    elements.cfgPolygon.value = JSON.stringify(settings.boundary_polygon || DEFAULT_CAMPUS_POLYGON, null, 2);
+  if (elements.allStudentsAttendanceTableBody) {
+    elements.allStudentsAttendanceTableBody.innerHTML = tableRowsHtml;
+  }
+
+  // Populate Geofence Admin Settings if visible
+  if (isMentor) {
+    if (elements.cfgCampusName) elements.cfgCampusName.value = settings.campus_name || '';
+    if (elements.cfgCrs) elements.cfgCrs.value = settings.crs || 'EPSG:4326 (WGS84)';
+    if (elements.cfgVersion) elements.cfgVersion.value = settings.config_version || '2.1.0';
+    if (elements.cfgApprovedBy) elements.cfgApprovedBy.value = settings.approved_by || 'Aakash (Administrator)';
+    if (elements.cfgAccuracy) elements.cfgAccuracy.value = settings.max_accuracy_meters || 100;
+    if (elements.cfgLatitude) elements.cfgLatitude.value = settings.center_latitude || 11.10043;
+    if (elements.cfgLongitude) elements.cfgLongitude.value = settings.center_longitude || 77.02661;
+    if (elements.cfgRadius) elements.cfgRadius.value = settings.radius_meters || 500;
+    if (elements.cfgPolygon && !elements.cfgPolygon.dataset.userEdited) {
+      elements.cfgPolygon.value = JSON.stringify(settings.boundary_polygon || DEFAULT_CAMPUS_POLYGON, null, 2);
+    }
   }
 }
 
 /**
- * Switch Primary View Tabs
+ * Backward compatibility stub
+ */
+function renderAdminAttendanceDashboard() {
+  renderAttendanceDashboard();
+}
+
+/**
+ * Switch Primary View Tabs (Leaderboard vs Unified Attendance)
  */
 function setPrimaryTab(tab) {
   currentPrimaryTab = tab;
 
-  // Remove active from all tabs
-  elements.tabNavLeaderboard.classList.remove('active');
-  elements.tabNavAttendance.classList.remove('active');
-  elements.tabNavAdminAttendance.classList.remove('active');
-  elements.tabNavSystemLab.classList.remove('active');
+  // Toggle active tab buttons
+  if (elements.tabNavLeaderboard) elements.tabNavLeaderboard.classList.toggle('active', tab === 'leaderboard');
+  if (elements.tabNavAttendance) elements.tabNavAttendance.classList.toggle('active', tab === 'attendance');
 
-  // Hide all views
-  elements.viewLeaderboard.style.display = 'none';
-  elements.viewAttendance.style.display = 'none';
-  elements.viewAdminAttendance.style.display = 'none';
-  elements.viewSystemDesignLab.style.display = 'none';
+  // Toggle views
+  if (elements.viewLeaderboard) elements.viewLeaderboard.style.display = tab === 'leaderboard' ? 'flex' : 'none';
+  if (elements.viewAttendance) elements.viewAttendance.style.display = tab === 'attendance' ? 'flex' : 'none';
 
   if (elements.pointsModeControlItem) {
     elements.pointsModeControlItem.style.display = tab === 'leaderboard' ? 'flex' : 'none';
   }
 
   if (tab === 'leaderboard') {
-    elements.tabNavLeaderboard.classList.add('active');
-    elements.viewLeaderboard.style.display = 'flex';
+    renderDesktopRows(getRankedData());
   } else if (tab === 'attendance') {
-    elements.tabNavAttendance.classList.add('active');
-    elements.viewAttendance.style.display = 'flex';
     renderAttendanceDashboard();
-  } else if (tab === 'admin_attendance') {
-    elements.tabNavAdminAttendance.classList.add('active');
-    elements.viewAdminAttendance.style.display = 'flex';
-    renderAdminAttendanceDashboard();
-  } else if (tab === 'system_lab') {
-    elements.tabNavSystemLab.classList.add('active');
-    elements.viewSystemDesignLab.style.display = 'flex';
-    initSystemDesignLab();
   }
 }
 
@@ -1429,7 +1599,7 @@ function selectStudent(studentId) {
 
   if (isMentor) {
     elements.modalSaveStatusMsg.className = 'save-status-msg';
-    elements.saveStatusText.textContent = 'All changes saved to Supabase';
+    elements.saveStatusText.textContent = 'Mentor Console: Award points for evaluation criteria. Early Bird & Late Night Owl points are auto-filled by attendance.';
     if (elements.btnSaveScoresToSupabase) {
       elements.btnSaveScoresToSupabase.style.display = 'inline-flex';
       elements.btnSaveScoresToSupabase.disabled = false;
@@ -1437,7 +1607,7 @@ function selectStudent(studentId) {
     }
   } else {
     elements.modalSaveStatusMsg.className = 'save-status-msg';
-    elements.saveStatusText.textContent = 'Read-Only View: Only authorized mentors can adjust evaluation marks.';
+    elements.saveStatusText.textContent = 'Student Scorecard: Read-only points view. Only mentors can evaluate other criteria.';
     if (elements.btnSaveScoresToSupabase) {
       elements.btnSaveScoresToSupabase.style.display = 'none';
     }
@@ -1456,19 +1626,29 @@ function renderCategoryEditorList(isMentor = authService.isMentorOrAdmin()) {
   elements.modalCategoriesEditorList.innerHTML = SCORING_CATEGORIES.map(cat => {
     const val = Number(editingStudentScores[cat.id]) || 0;
     const pct = Math.min(100, Math.round((val / cat.maxPoints) * 100));
+    const isAutoCategory = cat.id === 'early_bird' || cat.id === 'night_owl';
 
     return `
       <div class="category-editor-row" data-cat-id="${cat.id}">
         <div class="cat-label-box">
-          <span class="cat-label-title">${cat.name}</span>
-          <span class="cat-label-max">Maximum: ${cat.maxPoints} pts</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="cat-label-title">${cat.name}</span>
+            ${isAutoCategory ? `
+              <span style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); padding: 1px 7px; border-radius: 999px; font-weight: 800; letter-spacing: 0.03em;">
+                ⚡ AUTO-FILLED
+              </span>
+            ` : ''}
+          </div>
+          <span class="cat-label-max">
+            Maximum: ${cat.maxPoints} pts ${isAutoCategory ? '• Auto-filled on attendance check-in' : '• Evaluated by Mentor/Staff'}
+          </span>
         </div>
 
         <div class="cat-mini-bar-wrap" title="${val} of ${cat.maxPoints} pts (${pct}%)">
           <div class="cat-mini-bar-fill" id="catBar-${cat.id}" style="width: ${pct}%;"></div>
         </div>
 
-        ${isMentor ? `
+        ${isMentor && !isAutoCategory ? `
           <div class="cat-stepper-control">
             <button type="button" class="cat-stepper-btn" data-action="dec" data-cat-id="${cat.id}">-</button>
             <input 
@@ -1483,7 +1663,7 @@ function renderCategoryEditorList(isMentor = authService.isMentorOrAdmin()) {
             <button type="button" class="cat-stepper-btn" data-action="inc" data-cat-id="${cat.id}">+</button>
           </div>
         ` : `
-          <div style="font-weight: 800; color: var(--accent-lime); font-size: 0.95rem; min-width: 70px; text-align: right;">
+          <div style="font-weight: 800; color: ${isAutoCategory && val > 0 ? '#38bdf8' : 'var(--accent-lime)'}; font-size: 0.95rem; min-width: 70px; text-align: right;">
             ${val} <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">/ ${cat.maxPoints}</span>
           </div>
         `}
@@ -1637,69 +1817,127 @@ function closeModal() {
 }
 
 /**
- * System Design Lab Initialization
- */
-function initSystemDesignLab() {
-  if (!cachingSimInstance) cachingSimInstance = new CachingSimulation('cachingSimMount');
-  if (!lbSimInstance) lbSimInstance = new LoadBalancingSimulation('lbSimMount');
-}
-
-function setLabModule(module) {
-  currentLabModule = module;
-  if (module === 'caching') {
-    elements.btnLabModuleCaching.classList.add('active');
-    elements.btnLabModuleLb.classList.remove('active');
-    elements.moduleCardCaching.style.display = 'flex';
-    elements.moduleCardLb.style.display = 'none';
-  } else {
-    elements.btnLabModuleCaching.classList.remove('active');
-    elements.btnLabModuleLb.classList.add('active');
-    elements.moduleCardCaching.style.display = 'none';
-    elements.moduleCardLb.style.display = 'flex';
-  }
-}
-
-/**
  * Event Listeners
  */
 function setupEventListeners() {
-  // Navigation Tabs
-  elements.tabNavLeaderboard.addEventListener('click', () => setPrimaryTab('leaderboard'));
-  elements.tabNavAttendance.addEventListener('click', () => setPrimaryTab('attendance'));
-  elements.tabNavAdminAttendance.addEventListener('click', () => setPrimaryTab('admin_attendance'));
-  elements.tabNavSystemLab.addEventListener('click', () => setPrimaryTab('system_lab'));
+  // Primary Navigation Tabs
+  if (elements.tabNavLeaderboard) {
+    elements.tabNavLeaderboard.addEventListener('click', () => setPrimaryTab('leaderboard'));
+  }
+  if (elements.tabNavAttendance) {
+    elements.tabNavAttendance.addEventListener('click', () => setPrimaryTab('attendance'));
+  }
 
-  // Lab Sub-modules
-  elements.btnLabModuleCaching.addEventListener('click', () => setLabModule('caching'));
-  elements.btnLabModuleLb.addEventListener('click', () => setLabModule('load_balancing'));
+  // Attendance Sheet Filter & Download Options
+  if (elements.attSheetDatePicker) {
+    elements.attSheetDatePicker.addEventListener('change', (e) => {
+      selectedAttendanceDate = e.target.value;
+      renderAttendanceDashboard();
+    });
+  }
+
+  if (elements.btnFilterToday) {
+    elements.btnFilterToday.addEventListener('click', () => {
+      selectedAttendanceDate = getTodayISTDateString();
+      if (elements.attSheetDatePicker) elements.attSheetDatePicker.value = selectedAttendanceDate;
+      renderAttendanceDashboard();
+    });
+  }
+
+  if (elements.btnFilterAllDates) {
+    elements.btnFilterAllDates.addEventListener('click', () => {
+      selectedAttendanceDate = 'all';
+      if (elements.attSheetDatePicker) elements.attSheetDatePicker.value = '';
+      renderAttendanceDashboard();
+    });
+  }
+
+  if (elements.btnDownloadAttendanceCsv) {
+    elements.btnDownloadAttendanceCsv.addEventListener('click', () => {
+      if (!authService.isMentorOrAdmin()) {
+        alert('Access Denied: Attendance sheet download is restricted to mentors only.');
+        return;
+      }
+      const dateToExport = selectedAttendanceDate || getTodayISTDateString();
+      const lookup = {};
+      pilotstudyDb.getStudents().forEach(s => lookup[s.id] = s);
+      const csvContent = attendanceService.exportAttendanceCSV(dateToExport, lookup);
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      const filenameSuffix = dateToExport === 'all' ? 'All_Records' : dateToExport;
+      link.setAttribute('download', `SNSCT_Student_Attendance_${filenameSuffix}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  if (elements.headerGeofenceDrawerToggle) {
+    elements.headerGeofenceDrawerToggle.addEventListener('click', () => {
+      if (elements.adminGeofenceForm) {
+        const isHidden = elements.adminGeofenceForm.style.display === 'none';
+        elements.adminGeofenceForm.style.display = isHidden ? 'grid' : 'none';
+      }
+    });
+  }
 
   // Themes
-  elements.themeDarkBtn.addEventListener('click', () => setTheme('dark'));
-  elements.themeLightBtn.addEventListener('click', () => setTheme('light'));
+  if (elements.themeDarkBtn) elements.themeDarkBtn.addEventListener('click', () => setTheme('dark'));
+  if (elements.themeLightBtn) elements.themeLightBtn.addEventListener('click', () => setTheme('light'));
 
   // Points Mode
-  elements.modeZeroBtn.addEventListener('click', () => setPointsMode('zero'));
-  elements.modeDemoBtn.addEventListener('click', () => setPointsMode('demo'));
+  if (elements.modeZeroBtn) elements.modeZeroBtn.addEventListener('click', () => setPointsMode('zero'));
+  if (elements.modeDemoBtn) elements.modeDemoBtn.addEventListener('click', () => setPointsMode('demo'));
 
   // Search (debounced to prevent UI and render thrashing)
   let searchDebounceTimer = null;
-  elements.desktopSearchInput.addEventListener('input', (e) => {
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => {
-      searchQuery = e.target.value;
-      renderDesktopRows(getRankedData());
-    }, 120);
-  });
+  if (elements.desktopSearchInput) {
+    elements.desktopSearchInput.addEventListener('input', (e) => {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        searchQuery = e.target.value;
+        renderDesktopRows(getRankedData());
+      }, 120);
+    });
+  }
 
   // Modal Actions
-  elements.btnSaveScoresToSupabase.addEventListener('click', () => handleSaveScoresToSupabase({ isAutoSave: false }));
-  elements.closeModalBtn.addEventListener('click', closeModal);
-  elements.modalDismissBtn.addEventListener('click', closeModal);
-  elements.studentDetailModal.addEventListener('click', (e) => {
-    if (e.target === elements.studentDetailModal) closeModal();
-  });
+  if (elements.btnSaveScoresToSupabase) {
+    elements.btnSaveScoresToSupabase.addEventListener('click', () => handleSaveScoresToSupabase({ isAutoSave: false }));
+  }
+  if (elements.closeModalBtn) elements.closeModalBtn.addEventListener('click', closeModal);
+  if (elements.modalDismissBtn) elements.modalDismissBtn.addEventListener('click', closeModal);
+  if (elements.studentDetailModal) {
+    elements.studentDetailModal.addEventListener('click', (e) => {
+      if (e.target === elements.studentDetailModal) closeModal();
+    });
+  }
+
+  // Student Logout & Check-Out Confirmation Modal Events
+  if (elements.btnLogoutWithGps) {
+    elements.btnLogoutWithGps.addEventListener('click', handleModalGpsCheckout);
+  }
+  if (elements.btnCloseLogoutModal) {
+    elements.btnCloseLogoutModal.addEventListener('click', closeLogoutConfirmModal);
+  }
+  if (elements.btnCancelLogout) {
+    elements.btnCancelLogout.addEventListener('click', closeLogoutConfirmModal);
+  }
+  if (elements.logoutConfirmModal) {
+    elements.logoutConfirmModal.addEventListener('click', (e) => {
+      if (e.target === elements.logoutConfirmModal) closeLogoutConfirmModal();
+    });
+  }
+
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') {
+      closeModal();
+      closeLogoutConfirmModal();
+    }
   });
 
   // Standalone Sign-In Page Events
@@ -1717,6 +1955,10 @@ function setupEventListeners() {
 
   if (elements.btnSignInCheckLocation) {
     elements.btnSignInCheckLocation.addEventListener('click', handleCheckMyLocation);
+  }
+
+  if (elements.btnSignInSimulateCampus) {
+    elements.btnSignInSimulateCampus.addEventListener('click', handleSimulateCampusLocation);
   }
 
   if (elements.btnSignInRetryLocation) {
@@ -1751,37 +1993,11 @@ function setupEventListeners() {
     updateLocationStateUI(state, details);
   });
 
-  // Admin Events
-  if (elements.adminAttendanceDatePicker) {
-    elements.adminAttendanceDatePicker.addEventListener('change', (e) => {
-      selectedAdminDate = e.target.value;
-      renderAdminAttendanceDashboard();
-    });
-  }
-
   if (elements.btnAdminRecalculate) {
     elements.btnAdminRecalculate.addEventListener('click', () => {
-      const date = selectedAdminDate || getTodayISTDateString();
+      const date = selectedAttendanceDate === 'all' ? getTodayISTDateString() : (selectedAttendanceDate || getTodayISTDateString());
       attendanceService.recalculateDailyAwards(date);
       renderAll();
-    });
-  }
-
-  if (elements.btnAdminExportCsv) {
-    elements.btnAdminExportCsv.addEventListener('click', () => {
-      const date = selectedAdminDate || getTodayISTDateString();
-      const lookup = {};
-      pilotstudyDb.getStudents().forEach(s => lookup[s.id] = s);
-      const csvContent = attendanceService.exportAttendanceCSV(date, lookup);
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `SNSCT_Attendance_Report_${date}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
     });
   }
 
