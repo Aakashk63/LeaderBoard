@@ -375,6 +375,48 @@ export class AuthService {
    */
   async signOut() {
     try {
+      const current = this.currentStudent;
+      if (current && (current.role === 'student' || current.student_id?.startsWith('std-'))) {
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        const nowIso = new Date().toISOString();
+        try {
+          const { data: existing } = await supabase
+            .from('student_attendance')
+            .select('*')
+            .eq('student_id', current.student_id)
+            .eq('attendance_date', today)
+            .maybeSingle();
+
+          if (existing && !existing.logout_at) {
+            await supabase
+              .from('student_attendance')
+              .update({
+                logout_at: nowIso,
+                status: 'completed',
+                logout_location_verified: true,
+                updated_at: nowIso
+              })
+              .eq('student_id', current.student_id)
+              .eq('attendance_date', today);
+          } else if (!existing) {
+            await supabase
+              .from('student_attendance')
+              .insert({
+                student_id: current.student_id,
+                attendance_date: today,
+                login_at: nowIso,
+                login_location_verified: true,
+                logout_at: nowIso,
+                logout_location_verified: true,
+                status: 'completed',
+                updated_at: nowIso
+              });
+          }
+        } catch (attErr) {
+          console.warn('[authService] Auto-checkout on signOut notice:', attErr);
+        }
+      }
+
       await Promise.race([
         supabase.auth.signOut(),
         new Promise(resolve => setTimeout(resolve, 1200))

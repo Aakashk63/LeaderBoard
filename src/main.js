@@ -266,6 +266,16 @@ function initDashboard() {
   renderAll();
   renderAttendanceDashboard();
 
+  // Proactive 12-second realtime consistency sync interval
+  setInterval(async () => {
+    try {
+      await Promise.allSettled([
+        pilotstudyDb.fetchFromSupabase({ force: true }),
+        attendanceService.fetchFromSupabase({ force: true })
+      ]);
+    } catch (e) {}
+  }, 12000);
+
   // Always force fetch live authoritative data from Supabase on page load or refresh
   Promise.allSettled([
     pilotstudyDb.fetchFromSupabase({ force: true }),
@@ -958,24 +968,45 @@ async function handleStudentCheckOutAndLogout() {
     return;
   }
 
-  // 2. Students who already completed checkout today sign out directly
-  const summary = attendanceService.getStudentAttendanceSummary(authUser.student_id);
-  const alreadyCheckedOut = !!summary?.todayRecord?.logout_at;
-  if (alreadyCheckedOut) {
-    if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = true;
-    try {
-      await authService.signOut();
-      attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
-      syncAuthStateView();
-      showStandaloneAuthFeedback('Signed out securely.', 'idle');
-    } finally {
-      if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = false;
-    }
-    return;
-  }
+  // 2. Automatic Mandatory Check-Out and Logout for Students: Stored in Supabase
+  if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = true;
+  if (elements.btnStudentDashboardCheckout) elements.btnStudentDashboardCheckout.disabled = true;
 
-  // 3. Students pending checkout: open custom logout confirmation modal
-  openLogoutConfirmModal();
+  try {
+    const checkOutResult = await attendanceService.performCheckOut(authUser.student_id);
+
+    // Refresh live database and UI immediately
+    await pilotstudyDb.fetchFromSupabase({ force: true });
+    await attendanceService.fetchFromSupabase({ force: true });
+
+    let notice = 'Logged out successfully.';
+    if (checkOutResult && checkOutResult.success) {
+      notice = `Logged out at ${formatISTTime(checkOutResult.record?.logout_at)}. Attendance status completed.`;
+      if (checkOutResult.nightOwlAwarded) {
+        notice += ' Late Night Owl award (+10 pts) awarded!';
+      }
+    }
+
+    await authService.signOut();
+    attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
+    closeLogoutConfirmModal();
+    syncAuthStateView();
+    renderAll();
+    renderAttendanceDashboard();
+    showStandaloneAuthFeedback(notice, 'success');
+  } catch (err) {
+    console.warn('[main] Student check-out error:', err);
+    await authService.signOut();
+    attendanceService.setLocationState(LOCATION_STATES.WAITING, {});
+    closeLogoutConfirmModal();
+    syncAuthStateView();
+    renderAll();
+    renderAttendanceDashboard();
+    showStandaloneAuthFeedback('Signed out securely.', 'idle');
+  } finally {
+    if (elements.hdrBtnAction) elements.hdrBtnAction.disabled = false;
+    if (elements.btnStudentDashboardCheckout) elements.btnStudentDashboardCheckout.disabled = false;
+  }
 }
 
 /**
