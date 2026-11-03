@@ -254,6 +254,8 @@ assertTest(unauthReset.success === false, 'Rejects reset attempt by non-administ
 // Authorized Administrator releases Device 1
 const adminReset = await deviceService.adminResetDeviceBinding({
   deviceId: dev1_id,
+  hardwareHash: dev1_hw,
+  studentId: accountA.student_id,
   requestingRole: 'admin'
 });
 assertTest(adminReset.success === true, 'Administrator successfully releases Device 1 association');

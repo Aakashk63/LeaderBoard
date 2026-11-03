@@ -476,6 +476,11 @@ export class DeviceService {
         if (b.device_id === deviceId && b.hardware_hash) targetHw.add(b.hardware_hash);
       });
     }
+    if (studentId) {
+      registry.forEach(b => {
+        if (b.student_id === studentId && b.hardware_hash) targetHw.add(b.hardware_hash);
+      });
+    }
 
     const filtered = registry.filter(b => {
       if (studentId && b.student_id === studentId) return false;
@@ -490,11 +495,20 @@ export class DeviceService {
     try {
       await supabase
         .from('campus_geofence_settings')
-        .update({
+        .upsert({
+          id: 'device_registry',
+          campus_name: 'Device Registry Store',
+          center_latitude: 0,
+          center_longitude: 0,
+          radius_meters: 0,
+          max_accuracy_meters: 0,
+          boundary_polygon: [],
+          crs: 'EPSG:4326',
+          config_version: '2.1.0',
+          approved_by: 'One Device One Account Security Gate',
           zones: filtered,
           updated_at: nowIso
-        })
-        .eq('id', 'device_registry');
+        });
     } catch (e) {
       console.warn('[deviceService] Supabase admin reset error:', e);
     }
