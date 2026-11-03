@@ -174,6 +174,10 @@ export class PilotStudyRealtimeDatabase {
    */
   async fetchFromSupabase(options = {}) {
     const force = options.force !== undefined ? options.force : true;
+    if (force) {
+      appQueryCache.invalidate('pilotstudy_cohort_v3');
+      appQueryCache.invalidate('pilotstudy_cohort');
+    }
     const allowedIds = INITIAL_STUDENTS.map(s => s.id);
     try {
       const { data, fromCache, isStale } = await appQueryCache.fetchQuery(
@@ -270,20 +274,22 @@ export class PilotStudyRealtimeDatabase {
       // Cyclic import fallback
     }
 
-    if (att) {
-      if (att.todayEarlyPoints !== undefined && att.todayEarlyPoints > earlyBirdPts) {
-        earlyBirdPts = att.todayEarlyPoints;
-      }
-      if (att.todayNightPoints !== undefined && att.todayNightPoints > nightOwlPts) {
-        nightOwlPts = att.todayNightPoints;
-      }
+    // Only fall back to attendance summary if early bird / night owl are not explicitly defined
+    if (att && record.category_scores?.early_bird === undefined) {
+      earlyBirdPts = att.todayEarlyPoints || 0;
+    }
+    if (att && record.category_scores?.night_owl === undefined) {
+      nightOwlPts = att.todayNightPoints || 0;
     }
 
     categoryScores.early_bird = earlyBirdPts;
     categoryScores.night_owl = nightOwlPts;
 
     const attendancePoints = earlyBirdPts + nightOwlPts;
-    const totalPoints = oneTimeSum + attendancePoints;
+    // Strictly respect authoritative total_points from Supabase DB
+    const totalPoints = (typeof record.total_points === 'number' && !isNaN(record.total_points))
+      ? record.total_points
+      : (oneTimeSum + attendancePoints);
     const percentage = Math.round((totalPoints / MAX_SCORE) * 1000) / 10;
 
     return {

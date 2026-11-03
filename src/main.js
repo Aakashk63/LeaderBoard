@@ -590,18 +590,20 @@ function renderDesktopRows(rankedList) {
       ringClass = 'bronze-ring';
     }
 
-    // Attendance Badges
+    // Attendance Badges (Only displayed if student has attendance points)
     const att = student.attendance_summary || attendanceService.getStudentAttendanceSummary(student.id);
     let badgesHtml = '';
-        if (att.earlyBirdWinsCount > 0) {
+    const hasEarlyBirdPts = (student.category_scores?.early_bird || 0) > 0;
+    const hasNightOwlPts = (student.category_scores?.night_owl || 0) > 0;
+    if (att.earlyBirdWinsCount > 0 && hasEarlyBirdPts) {
       badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 0.2rem; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 12px;" title="${att.earlyBirdWinsCount}x Early Bird Wins (+${att.earlyBirdPoints} pts)">${att.earlyBirdWinsCount}x Early Bird</span>`;
     }
-    if (att.nightOwlWinsCount > 0) {
+    if (att.nightOwlWinsCount > 0 && hasNightOwlPts) {
       badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 0.2rem; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 12px;" title="${att.nightOwlWinsCount}x Night Owl Wins (+${att.nightOwlPoints} pts)">${att.nightOwlWinsCount}x Night Owl</span>`;
     }
 
-    const cumScore = student.cumulative_points || student.total_points;
-    const baseScore = student.base_points || student.total_points;
+    const cumScore = student.total_points !== undefined ? student.total_points : (student.cumulative_points || 10);
+    const baseScore = student.total_points !== undefined ? student.total_points : (student.base_points || 10);
 
     return `
       <div class="desktop-student-row ${isSelected ? 'is-selected' : ''}" data-student-id="${student.id}" title="Click to view & edit scores for ${escapeHtml(student.student_name)}">
