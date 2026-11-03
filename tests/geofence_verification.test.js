@@ -243,94 +243,136 @@ await runCheckInTest();
 console.log('');
 
 // -----------------------------------------------------------------------------
-// Test 10: Student Login Access for dummy@gmail.com / 12345678
+// Test 10: Strict 18-Student Cohort Directory & Password (Demo@1234)
 // -----------------------------------------------------------------------------
-console.log('--- Test 10: Student Login Access (dummy@gmail.com / 12345678) ---');
-const dummyAcc = STUDENT_ACCOUNTS.find(a => a.email === 'dummy@gmail.com');
-assert(Boolean(dummyAcc), 'dummy@gmail.com exists in STUDENT_ACCOUNTS directory');
-assert(dummyAcc.defaultPassword === '12345678', 'dummy@gmail.com has configured password 12345678');
-assert(dummyAcc.student_id === 'std-dummy', 'dummy@gmail.com is linked to std-dummy student ID');
-assert(dummyAcc.is_test_account === true, 'dummy@gmail.com is flagged as test account');
+console.log('--- Test 10: Strict 18-Student Cohort Directory & Password (Demo@1234) ---');
 
-// 1. Attempt sign in with GPS verification disabled (must fail)
+assert(STUDENT_ACCOUNTS.length === 18, 'STUDENT_ACCOUNTS contains EXACTLY 18 students', `Count: ${STUDENT_ACCOUNTS.length}`);
+
+// Verify all 18 have Demo@1234 as password
+const allHaveDemoPassword = STUDENT_ACCOUNTS.every(acc => acc.defaultPassword === 'Demo@1234');
+assert(allHaveDemoPassword, 'All 18 students have the required password: Demo@1234');
+
+// Verify all 18 student IDs are std-1 to std-18
+const expectedIds = Array.from({ length: 18 }, (_, i) => `std-${i + 1}`);
+const idsMatch = STUDENT_ACCOUNTS.every((acc, i) => acc.student_id === expectedIds[i]);
+assert(idsMatch, 'Student IDs strictly map sequentially to std-1 through std-18');
+
+// Verify previous test accounts (demo/dummy) are strictly eliminated
+const dummyExists = STUDENT_ACCOUNTS.some(a => a.student_id === 'std-dummy' || a.email === 'dummy@gmail.com');
+const demoExists = STUDENT_ACCOUNTS.some(a => a.student_id === 'std-demo' || a.email === 'demo@gmail.com');
+assert(!dummyExists, 'Former std-dummy account is strictly excluded from application');
+assert(!demoExists, 'Former std-demo account is strictly excluded from application');
+
+// Verify previous cohort names (Reshma, Sanjay, etc.) are strictly eliminated
+const reshmaExists = STUDENT_ACCOUNTS.some(a => a.student_name.toLowerCase().includes('reshma'));
+const sanjayExists = STUDENT_ACCOUNTS.some(a => a.student_name.toLowerCase().includes('sanjay'));
+assert(!reshmaExists, 'Old participant R.Reshma is strictly excluded from application');
+assert(!sanjayExists, 'Old participant Sanjay S is strictly excluded from application');
+console.log('');
+
+// -----------------------------------------------------------------------------
+// Test 11: Student Sign-In Verification with Mandatory Full Name & GPS Gates
+// -----------------------------------------------------------------------------
+console.log('--- Test 11: Student Sign-In Verification & Security Gates ---');
+
+// 1. Attempt sign in without GPS verification (must fail)
 const unverifiedResult = await authService.signIn({
-  fullName: 'Dummy Student',
-  identifier: 'dummy@gmail.com',
-  password: '12345678',
+  fullName: 'KAVINRAJ M',
+  identifier: 'kavinraj.m.cse.2026@snsct.org',
+  password: 'Demo@1234',
   role: 'student',
   isGpsVerified: false
 });
-assert(unverifiedResult.success === false, 'Rejects student sign-in without GPS verification gate');
+assert(unverifiedResult.success === false, 'Rejects student sign-in without verified campus GPS gate');
 
 // 2. Attempt sign in with wrong password (must fail)
 const wrongPassResult = await authService.signIn({
-  fullName: 'Dummy Student',
-  identifier: 'dummy@gmail.com',
-  password: 'wrong_password_999',
+  fullName: 'KAVINRAJ M',
+  identifier: 'kavinraj.m.cse.2026@snsct.org',
+  password: 'WrongPassword999',
   role: 'student',
   isGpsVerified: true
 });
 assert(wrongPassResult.success === false, 'Rejects student sign-in with invalid password');
 
-// 3. Attempt sign in with valid credentials & GPS verified (must succeed)
-const successResult = await authService.signIn({
-  fullName: 'Dummy Student',
-  identifier: 'dummy@gmail.com',
-  password: '12345678',
+// 3. Attempt sign in with wrong Full Name (must fail)
+const wrongNameResult = await authService.signIn({
+  fullName: 'Unknown Person',
+  identifier: 'kavinraj.m.cse.2026@snsct.org',
+  password: 'Demo@1234',
   role: 'student',
   isGpsVerified: true
 });
-assert(successResult.success === true, 'Successfully authenticates dummy@gmail.com with password 12345678', successResult.message);
-assert(successResult.user.student_id === 'std-dummy', 'Authenticated user student_id is std-dummy');
-assert(successResult.user.is_test_account === true, 'Authenticated user is marked as test account');
+assert(wrongNameResult.success === false, 'Rejects student sign-in when Full Name does not match enrolled record');
 
-// 4. Test username login with "dummy" identifier
-const usernameResult = await authService.signIn({
-  fullName: 'Dummy',
-  identifier: 'dummy',
-  password: '12345678',
+// 4. Test successful authentication for student 1: KAVINRAJ M
+const kavinrajLogin = await authService.signIn({
+  fullName: 'KAVINRAJ M',
+  identifier: 'kavinraj.m.cse.2026@snsct.org',
+  password: 'Demo@1234',
   role: 'student',
   isGpsVerified: true
 });
-assert(usernameResult.success === true, 'Successfully authenticates using username "dummy"', usernameResult.message);
+assert(kavinrajLogin.success === true, 'Successfully authenticates KAVINRAJ M with Demo@1234', kavinrajLogin.message);
+assert(kavinrajLogin.user.student_id === 'std-1', 'KAVINRAJ M authenticated student_id is std-1');
+
+// 5. Test username login for student 1: "kavinraj"
+const kavinrajUserLogin = await authService.signIn({
+  fullName: 'Kavinraj M',
+  identifier: 'kavinraj',
+  password: 'Demo@1234',
+  role: 'student',
+  isGpsVerified: true
+});
+assert(kavinrajUserLogin.success === true, 'Successfully authenticates KAVINRAJ M via short username "kavinraj"');
+
+// 6. Test Geetan D (with or without spaces in email)
+const geetanLogin = await authService.signIn({
+  fullName: 'Geetan D',
+  identifier: 'geetan.d.cse.2026@snsct.org',
+  password: 'Demo@1234',
+  role: 'student',
+  isGpsVerified: true
+});
+assert(geetanLogin.success === true, 'Successfully authenticates Geetan D (std-6)');
+
+const geetanSpacedLogin = await authService.signIn({
+  fullName: 'Geetan D',
+  identifier: 'geetan.d.cse.2026@snsct. org',
+  password: 'Demo@1234',
+  role: 'student',
+  isGpsVerified: true
+});
+assert(geetanSpacedLogin.success === true, 'Successfully handles email with whitespace as present in sheet');
+
+// 7. Test Student 18: Aishwarya
+const aishwaryaLogin = await authService.signIn({
+  fullName: 'Aishwarya',
+  identifier: 'aishwarya.m.cse.2026@snsct.org',
+  password: 'Demo@1234',
+  role: 'student',
+  isGpsVerified: true
+});
+assert(aishwaryaLogin.success === true, 'Successfully authenticates Aishwarya (std-18)');
+
+// 8. Attempt login with an unlisted student name (must be rejected)
+const unlistedLogin = await authService.signIn({
+  fullName: 'R.Reshma',
+  identifier: 'reshma@pilotstudy.snsct.edu.in',
+  password: 'Demo@1234',
+  role: 'student',
+  isGpsVerified: true
+});
+assert(unlistedLogin.success === false, 'Strictly rejects login for non-enrolled former participant R.Reshma');
+
 console.log('');
-
-// -----------------------------------------------------------------------------
-// Test 11: Demo Student Login Access (demo@gmail.com / 12345678 or demo)
-// -----------------------------------------------------------------------------
-console.log('--- Test 11: Demo Student Login Access (demo@gmail.com / 12345678) ---');
-const demoAcc = STUDENT_ACCOUNTS.find(a => a.student_id === 'std-demo');
-assert(Boolean(demoAcc), 'Demo Student account exists in STUDENT_ACCOUNTS directory');
-assert(demoAcc.email === 'demo@gmail.com', 'Demo student has email demo@gmail.com');
-assert(demoAcc.username === 'demo', 'Demo student has username demo');
-assert(demoAcc.student_id === 'std-demo', 'Demo student is linked to std-demo student ID');
-
-const demoSignInResult = await authService.signIn({
-  fullName: 'Demo Student',
-  identifier: 'demo@gmail.com',
-  password: '12345678',
-  role: 'student',
-  isGpsVerified: true
-});
-assert(demoSignInResult.success === true, 'Successfully authenticates demo@gmail.com with password 12345678', demoSignInResult.message);
-assert(demoSignInResult.user.student_id === 'std-demo', 'Authenticated user student_id is std-demo');
-
-const demoUsernameResult = await authService.signIn({
-  fullName: 'Demo Student',
-  identifier: 'demo',
-  password: '12345678',
-  role: 'student',
-  isGpsVerified: true
-});
-assert(demoUsernameResult.success === true, 'Successfully authenticates using username "demo"', demoUsernameResult.message);
-console.log('');
-
 // -----------------------------------------------------------------------------
 // Summary
 // -----------------------------------------------------------------------------
 console.log('================================================================');
 console.log(`ALL TESTS PASSED: ${passedTests} / ${totalTests} assertions passed.`);
-console.log('SNS Campus Polygon GPS Geofencing & Demo Student Login verified successfully.');
+console.log('SNS Campus GPS Geofencing & Strict 18-Student Login verified successfully.');
 console.log('================================================================\n');
 
 process.exit(0);

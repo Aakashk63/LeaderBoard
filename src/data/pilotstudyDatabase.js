@@ -56,7 +56,7 @@ export const SCORING_CATEGORIES = [
   ...ONE_TIME_CATEGORIES
 ];
 
-// Color gradients for circular avatars
+// Color gradients for circular avatars (Enrolled 18 students)
 export const AVATAR_PALETTES = {
   'std-1': 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)',
   'std-2': 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)',
@@ -75,14 +75,10 @@ export const AVATAR_PALETTES = {
   'std-15': 'linear-gradient(135deg, #4f46e5 0%, #312e81 100%)',
   'std-16': 'linear-gradient(135deg, #ec4899 0%, #9d174d 100%)',
   'std-17': 'linear-gradient(135deg, #0284c7 0%, #075985 100%)',
-  'std-18': 'linear-gradient(135deg, #9333ea 0%, #581c87 100%)',
-  'std-19': 'linear-gradient(135deg, #059669 0%, #064e3b 100%)',
-  'std-20': 'linear-gradient(135deg, #ea580c 0%, #7c2d12 100%)',
-  'std-demo': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-  'std-dummy': 'linear-gradient(135deg, #64748b 0%, #334155 100%)'
+  'std-18': 'linear-gradient(135deg, #9333ea 0%, #581c87 100%)'
 };
 
-const LOCAL_STORAGE_CACHE_KEY = 'pilotstudy_cache_v2';
+const LOCAL_STORAGE_CACHE_KEY = 'pilotstudy_cache_v3';
 
 export class PilotStudyRealtimeDatabase {
   constructor() {
@@ -129,8 +125,12 @@ export class PilotStudyRealtimeDatabase {
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          this.students = parsed;
-          return;
+          const allowedIds = INITIAL_STUDENTS.map(s => s.id);
+          const filtered = parsed.filter(s => allowedIds.includes(s.id));
+          if (filtered.length === INITIAL_STUDENTS.length) {
+            this.students = filtered;
+            return;
+          }
         }
       }
     } catch (e) {
@@ -141,7 +141,6 @@ export class PilotStudyRealtimeDatabase {
       this.students = INITIAL_STUDENTS.map(s => this.normalizeStudentRecord({
         id: s.id,
         student_name: s.name,
-        is_test_account: s.is_test_account,
         category_scores: {}
       }));
       this.recalculateRanks();
@@ -173,13 +172,15 @@ export class PilotStudyRealtimeDatabase {
    */
   async fetchFromSupabase(options = {}) {
     const force = options.force || false;
+    const allowedIds = INITIAL_STUDENTS.map(s => s.id);
     try {
       const { data, fromCache, isStale } = await appQueryCache.fetchQuery(
-        'pilotstudy_cohort',
+        'pilotstudy_cohort_v3',
         async () => {
           const res = await supabase
             .from('pilotstudy')
             .select('*')
+            .in('id', allowedIds)
             .order('id', { ascending: true });
           if (res.error) throw res.error;
           return res.data;
@@ -196,8 +197,23 @@ export class PilotStudyRealtimeDatabase {
         this.isSupabaseConnected = true;
         this.lastSyncTime = new Date();
 
-        // Process and ensure valid category_scores for each student
-        this.students = data.map(record => this.normalizeStudentRecord(record));
+        // Process only officially enrolled 18 students
+        const filtered = data.filter(record => allowedIds.includes(record.id));
+        this.students = filtered.map(record => this.normalizeStudentRecord(record));
+
+        // If some enrolled students are not yet in remote response, seed from INITIAL_STUDENTS
+        allowedIds.forEach(id => {
+          if (!this.students.some(s => s.id === id)) {
+            const initStd = INITIAL_STUDENTS.find(s => s.id === id);
+            if (initStd) {
+              this.students.push(this.normalizeStudentRecord({
+                id: initStd.id,
+                student_name: initStd.name,
+                category_scores: {}
+              }));
+            }
+          }
+        });
 
         // Calculate and verify rankings
         this.recalculateRanks();
@@ -238,24 +254,15 @@ export class PilotStudyRealtimeDatabase {
     // Attendance summary (cyclic safe)
     let att = { wonTodayEarly: false, wonTodayNight: false, todayEarlyPoints: 0, todayRecord: null };
     try {
-      if (typeof attendanceService !== 'undefined' && attendanceService && attendanceService.getStudentAttendanceSummary) {
-        att = attendanceService.getStudentAttendanceSummary(record.id) || att;
+      if (typeof attendanceService !== 'undefined' && attendanceService && attendanceService.getStudentDailySummary) {
+        att = attendanceService.getStudentDailySummary(record.id);
       }
     } catch (e) {
-      // Cyclic import safe fallback
+      // Cyclic import fallback
     }
 
-    // Current-day attendance awards (Arrival order up to 20 pts, Night Owl 10 pts)
-    const todayEarlyPts = att.todayRecord?.early_bird_points !== undefined
-      ? att.todayRecord.early_bird_points
-      : (Number(categoryScores.early_bird) || 0);
-    const todayNightPts = (att.wonTodayNight || Number(categoryScores.night_owl) > 0) ? 10 : 0;
-
-    categoryScores.early_bird = todayEarlyPts;
-    categoryScores.night_owl = todayNightPts;
-
-    // Total points = 9 mentor categories + auto-filled attendance points
-    const totalPoints = oneTimeSum + todayEarlyPts + todayNightPts;
+    const attendancePoints = (att.wonTodayEarly ? (att.todayEarlyPoints || 10) : 0) + (att.wonTodayNight ? 10 : 0);
+    const totalPoints = oneTimeSum + attendancePoints;
     const percentage = Math.round((totalPoints / MAX_SCORE) * 1000) / 10;
 
     return {
@@ -271,7 +278,6 @@ export class PilotStudyRealtimeDatabase {
       category_scores: categoryScores,
       attendance_summary: att,
       remarks: record.remarks || '',
-      is_test_account: Boolean(record.id === 'std-dummy' || record.id === 'std-demo' || record.is_test_account),
       updated_at: record.updated_at || new Date().toISOString(),
       avatarBg: AVATAR_PALETTES[record.id] || 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)'
     };
@@ -295,7 +301,7 @@ export class PilotStudyRealtimeDatabase {
           { event: '*', schema: 'public', table: 'pilotstudy' },
           (payload) => {
             console.log('[pilotstudy] Live Realtime change received:', payload);
-            appQueryCache.invalidate('pilotstudy_cohort');
+            appQueryCache.invalidate('pilotstudy_cohort_v3');
             this.handleRealtimePayload(payload);
           }
         )
@@ -313,6 +319,9 @@ export class PilotStudyRealtimeDatabase {
 
   handleRealtimePayload(payload) {
     if (!payload || !payload.new) return;
+    const allowedIds = INITIAL_STUDENTS.map(s => s.id);
+    if (!allowedIds.includes(payload.new.id)) return; // Ignore any external records
+
     const updated = this.normalizeStudentRecord(payload.new);
     const index = this.students.findIndex(s => s.id === updated.id);
 
@@ -329,33 +338,29 @@ export class PilotStudyRealtimeDatabase {
 
   /**
    * Standard Competition Ranking (1224 Ranking Policy)
-   * Separates official cohort students (1-20) from development dummy/test accounts
+   * Evaluates all 18 officially enrolled cohort students
    */
   recalculateRanks() {
-    const official = this.students.filter(s => !s.is_test_account && s.id !== 'std-dummy' && s.id !== 'std-demo');
-    const testAccounts = this.students.filter(s => s.is_test_account || s.id === 'std-dummy' || s.id === 'std-demo');
+    const allowedIds = INITIAL_STUDENTS.map(s => s.id);
+    const enrolled = this.students.filter(s => allowedIds.includes(s.id));
 
-    // Sort official students descending by total_points, secondary sort alphabetically
-    official.sort((a, b) => {
+    // Sort enrolled students descending by total_points, secondary sort alphabetically
+    enrolled.sort((a, b) => {
       if (b.total_points !== a.total_points) {
         return b.total_points - a.total_points;
       }
       return a.student_name.localeCompare(b.student_name);
     });
 
-    official.forEach((std, idx) => {
-      if (idx > 0 && std.total_points === official[idx - 1].total_points) {
-        std.rank = official[idx - 1].rank;
+    enrolled.forEach((std, idx) => {
+      if (idx > 0 && std.total_points === enrolled[idx - 1].total_points) {
+        std.rank = enrolled[idx - 1].rank;
       } else {
         std.rank = idx + 1;
       }
     });
 
-    testAccounts.forEach(std => {
-      std.rank = 'TEST';
-    });
-
-    this.students = [...official, ...testAccounts];
+    this.students = enrolled;
   }
 
   getStudents() {
@@ -373,10 +378,6 @@ export class PilotStudyRealtimeDatabase {
     const student = this.getStudentById(studentId);
     if (!student) {
       return { success: false, message: `Student ID "${studentId}" not found in database.` };
-    }
-
-    if (studentId === 'std-dummy') {
-      return { success: false, message: 'Permission Denied: Editing scores for dummy account is disabled.' };
     }
 
     // Validate all 11 category scores
@@ -466,7 +467,7 @@ export class PilotStudyRealtimeDatabase {
       }
 
       // Invalidate query cache so any subsequent reads or background refetches get fresh data
-      appQueryCache.invalidate('pilotstudy_cohort');
+      appQueryCache.invalidate('pilotstudy_cohort_v3');
 
       this.isSaving = false;
       this.emit('saving', false);

@@ -27,8 +27,8 @@ import { appQueryCache } from './data/cacheEngine.js';
 let currentTheme = 'dark';
 let currentPointsMode = 'demo'; // 'demo' (Supabase live) | 'zero'
 let currentPrimaryTab = 'leaderboard'; // 'leaderboard' | 'attendance'
-let selectedStudentId = 'std-4'; // Default to SAMYUKTHA P V
-let activeAttendanceStudentId = 'std-4';
+let selectedStudentId = 'std-1'; // Default to KAVINRAJ M
+let activeAttendanceStudentId = 'std-1';
 let selectedAttendanceDate = getTodayISTDateString();
 let searchQuery = '';
 let activeLoginRole = 'student'; // 'student' | 'mentor'
@@ -379,7 +379,7 @@ function renderAll() {
 function renderDesktopPodium(rankedList) {
   if (!elements.desktopPodiumRow) return;
 
-  const officialOnly = rankedList.filter(s => !s.is_test_account && s.id !== 'std-dummy' && s.id !== 'std-demo');
+  const officialOnly = rankedList.filter(s => s && s.id);
   const studentsWithPoints = officialOnly.filter(s => (s.cumulative_points || s.total_points) > 0);
 
   // If all points are zero, do not display any student's name on the Top Performers Podium
@@ -526,9 +526,7 @@ function renderDesktopRows(rankedList) {
     let rankDisplayHtml = `<span class="row-rank-number">${student.rank}</span>`;
     let ringClass = '';
 
-    if (student.is_test_account || student.id === 'std-dummy' || student.id === 'std-demo') {
-      rankDisplayHtml = `<span class="row-rank-number" style="font-size: 0.65rem; color: #34d399; background: rgba(16, 185, 129, 0.15); padding: 0.2rem 0.4rem; border-radius: 4px; font-weight: 800;">DEMO</span>`;
-    } else if (student.rank === 1) {
+    if (student.rank === 1) {
       rankDisplayHtml = `<div class="row-medal-icon gold" title="Rank 1: Gold">${ICONS.medalGold}</div>`;
       ringClass = 'gold-ring';
     } else if (student.rank === 2) {
@@ -542,12 +540,7 @@ function renderDesktopRows(rankedList) {
     // Attendance Badges
     const att = student.attendance_summary || attendanceService.getStudentAttendanceSummary(student.id);
     let badgesHtml = '';
-    if (student.id === 'std-demo') {
-      badgesHtml += `<span style="display: inline-flex; align-items: center; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 12px;">Demo Account</span>`;
-    } else if (student.is_test_account || student.id === 'std-dummy') {
-      badgesHtml += `<span style="display: inline-flex; align-items: center; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 12px;">Dev Test Account</span>`;
-    }
-    if (att.earlyBirdWinsCount > 0) {
+        if (att.earlyBirdWinsCount > 0) {
       badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 0.2rem; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 12px;" title="${att.earlyBirdWinsCount}x Early Bird Wins (+${att.earlyBirdPoints} pts)">${att.earlyBirdWinsCount}x Early Bird</span>`;
     }
     if (att.nightOwlWinsCount > 0) {
@@ -635,17 +628,10 @@ function renderQuickAccountsGrid() {
   if (!elements.gridStandaloneQuickAccounts) return;
 
   const studentChips = STUDENT_ACCOUNTS.map(acc => {
-    const isDemo = acc.student_id === 'std-demo';
-    const isTest = acc.is_test_account;
-    const dotColor = isDemo ? '#10b981' : (isTest ? '#f59e0b' : '');
-    const textColor = isDemo ? '#34d399' : (isTest ? '#fbbf24' : '');
-    const labelTag = isDemo ? ' [DEMO]' : (isTest ? ' [TEST]' : '');
-    const chipClass = isDemo ? 'quick-account-chip demo-account' : (isTest ? 'quick-account-chip test-account' : 'quick-account-chip');
-
     return `
-      <button type="button" class="${chipClass}" data-role="student" data-id="${acc.student_id}" data-name="${escapeHtml(acc.student_name)}" data-identifier="${acc.email}" data-password="${isTest ? '12345678' : (acc.defaultPassword || '')}" data-test="${isTest ? 'true' : 'false'}" title="${isDemo ? 'Demo Student: Click to autofill demo credentials' : (isTest ? 'Dummy Test Account' : `Student: ${escapeHtml(acc.student_name)} (${acc.student_id})`)}">
-        <span class="quick-chip-dot" style="${dotColor ? `background: ${dotColor};` : ''}"></span>
-        <span style="${textColor ? `color: ${textColor}; font-weight: 800;` : ''}">${escapeHtml(acc.student_name)}${labelTag}</span>
+      <button type="button" class="quick-account-chip" data-role="student" data-id="${acc.student_id}" data-name="${escapeHtml(acc.student_name)}" data-identifier="${acc.email}" data-password="${acc.defaultPassword || 'Demo@1234'}" title="Student: ${escapeHtml(acc.student_name)} (${acc.student_id})">
+        <span class="quick-chip-dot" style="background: var(--accent-lime);"></span>
+        <span>${escapeHtml(acc.student_name)}</span>
       </button>
     `;
   }).join('');
@@ -662,11 +648,9 @@ function renderQuickAccountsGrid() {
   elements.gridStandaloneQuickAccounts.querySelectorAll('.quick-account-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       const role = chip.getAttribute('data-role');
-      const stdId = chip.getAttribute('data-id');
       const name = chip.getAttribute('data-name');
       const iden = chip.getAttribute('data-identifier');
       const pass = chip.getAttribute('data-password');
-      const isTest = chip.getAttribute('data-test') === 'true';
 
       setLoginRole(role);
 
@@ -674,18 +658,11 @@ function renderQuickAccountsGrid() {
       if (elements.inputSignInEmail) elements.inputSignInEmail.value = iden;
       if (elements.inputSignInPassword) elements.inputSignInPassword.value = pass;
 
-      // Always reset location verification when changing accounts
       attendanceService.resetVerification('Switched student account. Fresh physical GPS reading required.');
       updateLocationStateUI(attendanceService.locationVerificationState, attendanceService.lastVerificationResult);
 
       if (role === 'student') {
-        if (stdId === 'std-demo') {
-          showStandaloneAuthFeedback(`Selected Demo Student (demo@gmail.com / 12345678). Click "Verify Campus GPS (Lab / Test)" or "Check My Location", then click "Sign In & Mark Attendance"!`, 'idle');
-        } else if (isTest) {
-          showStandaloneAuthFeedback(`Selected Dummy Student (Test Account: dummy@gmail.com). Subject to strict real GPS verification (no bypass). Click "Check My Location" to proceed.`, 'idle');
-        } else {
-          showStandaloneAuthFeedback(`Selected ${name} (${iden}). Mandatory GPS verification required: click "Check My Location" to proceed.`, 'idle');
-        }
+        showStandaloneAuthFeedback(`Selected ${name} (${iden}). Mandatory GPS verification required: click "Check My Location" to proceed.`, 'idle');
       } else {
         showStandaloneAuthFeedback(`Selected ${name} (Mentor). Click "Sign In as Mentor" below.`, 'idle');
       }
