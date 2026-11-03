@@ -27,12 +27,13 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   }
 });
 
-export const MAX_SCORE = 125;
-export const MAX_ONE_TIME_SCORE = 95;
+export const MAX_SCORE = 145;
+export const MAX_ONE_TIME_SCORE = 105;
 
-// The 9 One-Time Scoring Categories (Scored once during pilot study, max 95 pts)
+// The Mentor-Evaluated Scoring Categories (including Today Review Mark)
 export const ONE_TIME_CATEGORIES = [
-  { id: 'leetcode', name: 'LeetCode Champion', maxPoints: 5, defaultPts: 4 },
+  { id: 'today_review', name: 'Today Review Mark', maxPoints: 20, defaultPts: 0, description: 'Daily performance review evaluated directly by mentors' },
+  { id: 'leetcode', name: 'LeetCode Champion', maxPoints: 10, defaultPts: 10 },
   { id: 'empathizer', name: 'Best Empathizer', maxPoints: 5, defaultPts: 5 },
   { id: 'workbench', name: 'Hands-on Planner (Workbench)', maxPoints: 10, defaultPts: 8 },
   { id: 'frontend', name: 'Visual Treater (Frontend)', maxPoints: 10, defaultPts: 9 },
@@ -269,7 +270,10 @@ export class PilotStudyRealtimeDatabase {
       // Cyclic import fallback
     }
 
-    if (att) {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const isAutoScoringActive = today >= '2026-11-04'; // From next day onwards
+
+    if (isAutoScoringActive && att) {
       if (att.todayEarlyPoints !== undefined && att.todayEarlyPoints > earlyBirdPts) {
         earlyBirdPts = att.todayEarlyPoints;
       } else if (att.wonTodayEarly && earlyBirdPts === 0) {
@@ -278,6 +282,9 @@ export class PilotStudyRealtimeDatabase {
       if (att.wonTodayNight && nightOwlPts === 0) {
         nightOwlPts = 10;
       }
+    } else if (!isAutoScoringActive) {
+      earlyBirdPts = 0;
+      nightOwlPts = 0;
     }
 
     categoryScores.early_bird = earlyBirdPts;

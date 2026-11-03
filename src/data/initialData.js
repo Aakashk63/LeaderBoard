@@ -45,6 +45,15 @@ export const SCORING_CATEGORIES = [
     description: 'Awarded on logout order: 1st logout gets 1 pt, each subsequent gets 1 pt more up to 20 pts (2nd: 2, 3rd: 3, ..., last: 20).'
   },
   {
+    id: 'today_review',
+    shortName: 'Review',
+    fullName: 'Today Review Mark',
+    maxPoints: 20,
+    icon: '⭐',
+    color: '#10b981',
+    description: 'Daily review mark given directly by mentors.'
+  },
+  {
     id: 'leetcode',
     shortName: 'LeetCode',
     fullName: 'LeetCode Champion',

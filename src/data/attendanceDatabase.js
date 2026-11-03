@@ -60,14 +60,16 @@ export function enrichAttendanceRecords(records) {
   });
 
   Object.values(byDate).forEach(dayList => {
-    // 1. Arrival Order & Login Points (1st gets 20 pts, 2nd gets 19, ..., -1 pt each)
+    const isAutoScoringActive = (dayList[0]?.attendance_date || dayList[0]?.date) >= '2026-11-04';
+
+    // 1. Arrival Order & Login Points (1st gets 20 pts, 2nd gets 19, ..., -1 pt each from next day onwards)
     const verifiedLogins = dayList
       .filter(r => r.login_at && (r.login_location_verified || r.login_at))
       .sort((a, b) => new Date(a.login_at).getTime() - new Date(b.login_at).getTime());
 
     verifiedLogins.forEach((rec, idx) => {
       rec.arrival_order = idx + 1;
-      rec.early_bird_points = Math.max(0, 21 - (idx + 1));
+      rec.early_bird_points = isAutoScoringActive ? Math.max(0, 21 - (idx + 1)) : 0;
       rec.is_early_bird = rec.early_bird_points > 0;
     });
 
@@ -79,16 +81,16 @@ export function enrichAttendanceRecords(records) {
       }
     });
 
-    // 2. Checkout Order & Logout Points (1st gets 1 pt, 2nd gets 2, ..., last gets up to 20 pts)
+    // 2. Checkout Order & Logout Points (1st gets 1 pt, 2nd gets 2, ..., last gets up to 20 pts from next day onwards)
     const verifiedLogouts = dayList
       .filter(r => r.logout_at && (r.logout_location_verified || r.status === 'completed'))
       .sort((a, b) => new Date(a.logout_at).getTime() - new Date(b.logout_at).getTime());
 
     verifiedLogouts.forEach((rec, idx) => {
       rec.logout_order = idx + 1;
-      rec.logout_points = Math.min(20, idx + 1);
+      rec.logout_points = isAutoScoringActive ? Math.min(20, idx + 1) : 0;
       rec.night_owl_points = rec.logout_points;
-      rec.is_night_owl = true;
+      rec.is_night_owl = rec.logout_points > 0;
     });
 
     dayList.forEach(rec => {
@@ -893,7 +895,7 @@ export class AttendanceService {
 
       if (changed || earlyBirdPoints > 0) {
         const allCatIds = [
-          'early_bird', 'night_owl', 'leetcode', 'empathizer',
+          'early_bird', 'night_owl', 'today_review', 'leetcode', 'empathizer',
           'workbench', 'frontend', 'dt_playbook', 'assessment',
           'okr', 'all_rounder', 'team_lead'
         ];
@@ -1038,9 +1040,10 @@ export class AttendanceService {
       arrivalOrder = otherLogins.length + 1;
     }
 
-    const earlyBirdPoints = Math.max(0, 21 - arrivalOrder);
+    const isAutoScoringActive = today >= '2026-11-04';
+    const earlyBirdPoints = isAutoScoringActive ? Math.max(0, 21 - arrivalOrder) : 0;
     const isEarlyBird = earlyBirdPoints > 0;
-    const isNightOwl = isStrictlyAfter6PMIST(loginTimeIso);
+    const isNightOwl = isAutoScoringActive && isStrictlyAfter6PMIST(loginTimeIso);
 
     // Save authoritative record to Supabase using only PostgreSQL schema-valid columns
     const dbPayload = {
@@ -1238,11 +1241,12 @@ export class AttendanceService {
       allToday = this.attendanceRecords.filter(r => (r.attendance_date === today || r.date === today));
     }
 
+    const isAutoScoringActive = today >= '2026-11-04';
     // Calculate logout order: count other verified checkouts for today
     const otherLogouts = allToday.filter(r => r.student_id !== studentId && r.logout_at);
     const logoutOrder = otherLogouts.length + 1;
-    // 1st person to logout gets 1 mark, next gets 2 marks, ..., up to 20 marks
-    const logoutPoints = Math.min(20, Math.max(1, logoutOrder));
+    // 1st person to logout gets 1 mark, next gets 2 marks, ..., up to 20 marks from next day onwards
+    const logoutPoints = isAutoScoringActive ? Math.min(20, Math.max(1, logoutOrder)) : 0;
 
     record.logout_at = nowIso;
     record.logout_latitude = coords.latitude;

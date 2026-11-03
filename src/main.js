@@ -285,18 +285,20 @@ function initDashboard() {
     const authUser = authService.getCurrentStudent();
     if (authUser && (authUser.role === 'student' || authUser.student_id?.startsWith('std-'))) {
       const today = getTodayISTDateString();
-      const existingRec = attendanceService.attendanceRecords.find(
-        r => r.student_id === authUser.student_id && r.attendance_date === today && r.login_at
-      );
-      if (!existingRec) {
-        try {
-          const res = await attendanceService.performCheckIn(authUser.student_id);
-          if (res && res.success) {
-            await pilotstudyDb.fetchFromSupabase({ force: true });
-            await attendanceService.fetchFromSupabase({ force: true });
+      if (today >= '2026-11-04') {
+        const existingRec = attendanceService.attendanceRecords.find(
+          r => r.student_id === authUser.student_id && r.attendance_date === today && r.login_at
+        );
+        if (!existingRec) {
+          try {
+            const res = await attendanceService.performCheckIn(authUser.student_id);
+            if (res && res.success) {
+              await pilotstudyDb.fetchFromSupabase({ force: true });
+              await attendanceService.fetchFromSupabase({ force: true });
+            }
+          } catch (err) {
+            console.warn('[attendance] Session restore auto check-in notice:', err);
           }
-        } catch (err) {
-          console.warn('[attendance] Session restore auto check-in notice:', err);
         }
       }
     }
@@ -1755,10 +1757,14 @@ function renderCategoryEditorList(isMentor = authService.isMentorOrAdmin()) {
               <span style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); padding: 1px 7px; border-radius: 999px; font-weight: 800; letter-spacing: 0.03em;">
                 ⚡ AUTO-FILLED
               </span>
-            ` : ''}
+            ` : (cat.id === 'today_review' ? `
+              <span style="font-size: 0.65rem; background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 1px 8px; border-radius: 999px; font-weight: 800; letter-spacing: 0.03em;">
+                ⭐ MENTOR TODAY REVIEW
+              </span>
+            ` : '')}
           </div>
           <span class="cat-label-max">
-            Maximum: ${cat.maxPoints} pts ${isAutoCategory ? '• Auto-filled on attendance check-in' : '• Evaluated by Mentor/Staff'}
+            Maximum: ${cat.maxPoints} pts ${isAutoCategory ? '• Auto-filled on attendance check-in/out' : (cat.id === 'today_review' ? '• Given directly by Mentors' : '• Evaluated by Mentor/Staff')}
           </span>
         </div>
 
