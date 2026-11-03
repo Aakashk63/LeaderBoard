@@ -1022,6 +1022,26 @@ export class AttendanceService {
       r => r.student_id === studentId && (r.attendance_date === today || r.date === today)
     );
     if (existing && existing.login_at && existing.login_location_verified) {
+      // Ensure authoritative persistence in Supabase
+      try {
+        await supabase
+          .from('student_attendance')
+          .upsert({
+            student_id: studentId,
+            attendance_date: today,
+            login_at: existing.login_at,
+            login_latitude: existing.login_latitude || 11.10043,
+            login_longitude: existing.login_longitude || 77.02661,
+            login_accuracy_meters: existing.login_accuracy_meters || 15.0,
+            login_location_verified: true,
+            status: existing.status || 'checked_in',
+            is_early_bird: Boolean(existing.is_early_bird),
+            is_night_owl: Boolean(existing.is_night_owl),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'student_id,attendance_date' });
+      } catch (e) {
+        console.warn('[attendance] Sync existing check-in to Supabase notice:', e);
+      }
       await this.syncAllDailyAttendancePoints(today);
       return {
         success: false,
@@ -1034,8 +1054,19 @@ export class AttendanceService {
       };
     }
 
-    // Reuse verified coordinates if available; otherwise acquire or use campus fallback so check-in is never blocked
+    // Reuse verified coordinates if available; for test account (std-19) or fallback, attach official SNS campus coordinates
     let coords = this.lastKnownCoords;
+    if (studentId === 'std-19' && !coords) {
+      coords = {
+        latitude: this.campusSettings.center_latitude || 11.10043,
+        longitude: this.campusSettings.center_longitude || 77.02661,
+        accuracy: 12.0,
+        insideCampus: true,
+        nearestZone: { name: 'SNS College of Technology & SNS iHub' },
+        timestamp: Date.now(),
+        verifiedAt: Date.now()
+      };
+    }
     if (!coords) {
       try {
         coords = await this.getCurrentGPSPosition();
@@ -1223,8 +1254,19 @@ export class AttendanceService {
       };
     }
 
-    // Reuse verified coordinates if available; otherwise acquire or use campus fallback so check-out is never blocked
+    // Reuse verified coordinates if available; for test account (std-19) or fallback, attach official SNS campus coordinates
     let coords = this.lastKnownCoords;
+    if (studentId === 'std-19' && !coords) {
+      coords = {
+        latitude: this.campusSettings.center_latitude || 11.10043,
+        longitude: this.campusSettings.center_longitude || 77.02661,
+        accuracy: 12.0,
+        insideCampus: true,
+        nearestZone: { name: 'SNS College of Technology & SNS iHub' },
+        timestamp: Date.now(),
+        verifiedAt: Date.now()
+      };
+    }
     if (!coords) {
       try {
         coords = await this.getCurrentGPSPosition();

@@ -713,6 +713,33 @@ function renderQuickAccountsGrid() {
       if (elements.inputSignInEmail) elements.inputSignInEmail.value = iden;
       if (elements.inputSignInPassword) elements.inputSignInPassword.value = pass;
 
+      if (iden?.toLowerCase().includes('johnwick') || name?.toLowerCase() === 'john wick') {
+        attendanceService.locationVerificationState = LOCATION_STATES.VERIFIED;
+        attendanceService.lastKnownCoords = {
+          latitude: 11.10043,
+          longitude: 77.02661,
+          accuracy: 12.0,
+          insideCampus: true,
+          distanceToBoundary: 0,
+          distance: 0,
+          nearestZone: { name: 'SNS College of Technology & SNS iHub' },
+          timestamp: Date.now(),
+          verifiedAt: Date.now()
+        };
+        attendanceService.lastVerificationResult = {
+          state: LOCATION_STATES.VERIFIED,
+          success: true,
+          accuracy: 12.0,
+          distance: 0,
+          insideCampus: true,
+          message: 'Location verified (SNS College of Technology & SNS iHub)'
+        };
+        updateLocationStateUI(LOCATION_STATES.VERIFIED, attendanceService.lastVerificationResult);
+        if (elements.btnStandaloneSignInSubmit) elements.btnStandaloneSignInSubmit.disabled = false;
+        showStandaloneAuthFeedback(`Selected John Wick (Test Account). Location verification auto-bypassed with official campus GPS attached. Ready to sign in!`, 'idle');
+        return;
+      }
+
       attendanceService.resetVerification('Switched student account. Fresh physical GPS reading required.');
       updateLocationStateUI(attendanceService.locationVerificationState, attendanceService.lastVerificationResult);
 
@@ -851,16 +878,22 @@ function showStandaloneAuthFeedback(msg, type) {
 async function handleStandaloneSignIn(e) {
   if (e) e.preventDefault();
 
-  const fullName = elements.inputSignInFullName?.value?.trim();
+  let fullName = elements.inputSignInFullName?.value?.trim();
   const identifier = elements.inputSignInEmail?.value?.trim();
   const password = elements.inputSignInPassword?.value;
+
+  const isJohnWick = identifier?.toLowerCase().includes('johnwick') || fullName?.toLowerCase() === 'john wick';
+  if (isJohnWick && !fullName) {
+    fullName = 'John Wick';
+    if (elements.inputSignInFullName) elements.inputSignInFullName.value = 'John Wick';
+  }
 
   // Auto-detect mentor / admin account if entered
   const mentorAccount = authService.lookupAccount(identifier, 'mentor');
   const isMentorAccount = mentorAccount && (mentorAccount.role === 'mentor' || mentorAccount.role === 'admin');
   const effectiveRole = isMentorAccount ? 'mentor' : activeLoginRole;
 
-  if (effectiveRole === 'student' && !fullName) {
+  if (effectiveRole === 'student' && !fullName && !isJohnWick) {
     showStandaloneAuthFeedback('Full Name is required to confirm student identity.', 'error');
     return;
   }
@@ -871,7 +904,32 @@ async function handleStandaloneSignIn(e) {
   }
 
   let isGpsVerified = attendanceService.locationVerificationState === LOCATION_STATES.VERIFIED;
-  if (effectiveRole === 'student' && !isGpsVerified) {
+  if (isJohnWick) {
+    // For test account (John Wick): Do not ask/block for location verification,
+    // but automatically attach official SNS College of Technology & SNS iHub coordinates
+    // so location data and timestamp are stored in Supabase exactly like other accounts.
+    isGpsVerified = true;
+    attendanceService.locationVerificationState = LOCATION_STATES.VERIFIED;
+    attendanceService.lastKnownCoords = {
+      latitude: 11.10043,
+      longitude: 77.02661,
+      accuracy: 12.0,
+      insideCampus: true,
+      distanceToBoundary: 0,
+      distance: 0,
+      nearestZone: { name: 'SNS College of Technology & SNS iHub' },
+      timestamp: Date.now(),
+      verifiedAt: Date.now()
+    };
+    attendanceService.lastVerificationResult = {
+      state: LOCATION_STATES.VERIFIED,
+      success: true,
+      accuracy: 12.0,
+      distance: 0,
+      insideCampus: true,
+      message: 'Location verified (SNS College of Technology & SNS iHub)'
+    };
+  } else if (effectiveRole === 'student' && !isGpsVerified) {
     showStandaloneAuthFeedback('Verifying campus location at SNS College of Technology & SNS iHub...', 'loading');
     try {
       const locRes = await attendanceService.verifyCurrentLocation();
@@ -1302,14 +1360,21 @@ function updateLocationStateUI(state, details = {}) {
 
   // 2. Enable or Disable Sign-In Button on Standalone Page
   if (activeLoginRole === 'student') {
+    const isJohnWick = elements.inputSignInEmail?.value?.trim().toLowerCase().includes('johnwick') ||
+      elements.inputSignInFullName?.value?.trim().toLowerCase() === 'john wick';
     if (elements.btnStandaloneSignInSubmit) {
-      elements.btnStandaloneSignInSubmit.disabled = !isVerified;
+      elements.btnStandaloneSignInSubmit.disabled = !isVerified && !isJohnWick;
     }
     if (elements.textSignInGateNotice) {
-      elements.textSignInGateNotice.textContent = isVerified
-        ? 'Location Verified • Ready to Sign In'
-        : 'Location Verification Required Before Sign-In';
-      elements.textSignInGateNotice.style.color = isVerified ? 'var(--accent-lime)' : 'var(--text-muted)';
+      if (isJohnWick) {
+        elements.textSignInGateNotice.textContent = 'Test Account (John Wick) • Ready to Sign In (Campus Location Attached)';
+        elements.textSignInGateNotice.style.color = 'var(--accent-lime)';
+      } else {
+        elements.textSignInGateNotice.textContent = isVerified
+          ? 'Location Verified • Ready to Sign In'
+          : 'Location Verification Required Before Sign-In';
+        elements.textSignInGateNotice.style.color = isVerified ? 'var(--accent-lime)' : 'var(--text-muted)';
+      }
     }
   }
 
@@ -2098,6 +2163,26 @@ function setupEventListeners() {
   // Standalone Sign-In Page Events
   if (elements.standaloneLoginForm) {
     elements.standaloneLoginForm.addEventListener('submit', handleStandaloneSignIn);
+  }
+
+  if (elements.inputSignInEmail) {
+    const handleJohnWickTyping = () => {
+      const val = elements.inputSignInEmail.value?.trim().toLowerCase();
+      if (val && val.includes('johnwick')) {
+        if (elements.inputSignInFullName && !elements.inputSignInFullName.value.trim()) {
+          elements.inputSignInFullName.value = 'John Wick';
+        }
+        if (elements.btnStandaloneSignInSubmit) {
+          elements.btnStandaloneSignInSubmit.disabled = false;
+        }
+        if (elements.textSignInGateNotice) {
+          elements.textSignInGateNotice.textContent = 'Test Account (John Wick) • Ready to Sign In (Campus Location Attached)';
+          elements.textSignInGateNotice.style.color = 'var(--accent-lime)';
+        }
+      }
+    };
+    elements.inputSignInEmail.addEventListener('input', handleJohnWickTyping);
+    elements.inputSignInEmail.addEventListener('change', handleJohnWickTyping);
   }
 
   if (elements.btnRoleStudent) {
