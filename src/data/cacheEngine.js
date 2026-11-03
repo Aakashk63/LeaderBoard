@@ -206,7 +206,16 @@ export class AppQueryCache {
     const cb = this.getCircuitBreaker(endpointKey);
 
     // 1. Check existing cache entry
-    const cached = this.get(key);
+    if (force) {
+      this.memoryCache.delete(key);
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('app_cache_' + key);
+        }
+      } catch (e) {}
+    }
+
+    const cached = force ? null : this.get(key);
 
     if (!force && cached) {
       if (!cached.isExpired()) {

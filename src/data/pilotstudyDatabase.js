@@ -96,7 +96,7 @@ export class PilotStudyRealtimeDatabase {
     // Load initial local cache if present
     this.loadFromCache();
     // Fetch authoritative data from Supabase
-    this.fetchFromSupabase();
+    this.fetchFromSupabase({ force: true });
     // Subscribe to Realtime changes
     this.setupRealtimeSubscription();
 
@@ -171,7 +171,7 @@ export class PilotStudyRealtimeDatabase {
    * Fetch authoritative records from Supabase pilotstudy table with SWR Caching & Deduplication
    */
   async fetchFromSupabase(options = {}) {
-    const force = options.force || false;
+    const force = options.force !== undefined ? options.force : true;
     const allowedIds = INITIAL_STUDENTS.map(s => s.id);
     try {
       const { data, fromCache, isStale } = await appQueryCache.fetchQuery(
