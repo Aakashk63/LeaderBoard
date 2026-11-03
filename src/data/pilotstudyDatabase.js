@@ -80,7 +80,7 @@ export const AVATAR_PALETTES = {
   'std-19': 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
 };
 
-const LOCAL_STORAGE_CACHE_KEY = 'pilotstudy_cache_v3';
+const LOCAL_STORAGE_CACHE_KEY = 'pilotstudy_cache_v4';
 
 export class PilotStudyRealtimeDatabase {
   constructor() {
@@ -181,13 +181,15 @@ export class PilotStudyRealtimeDatabase {
   async fetchFromSupabase(options = {}) {
     const force = options.force !== undefined ? options.force : true;
     if (force) {
+      appQueryCache.invalidate('pilotstudy_cohort_v4');
+      appQueryCache.invalidate('pilotstudy_cohort_v4');
       appQueryCache.invalidate('pilotstudy_cohort_v3');
       appQueryCache.invalidate('pilotstudy_cohort');
     }
     const allowedIds = INITIAL_STUDENTS.map(s => s.id);
     try {
       const { data, fromCache, isStale } = await appQueryCache.fetchQuery(
-        'pilotstudy_cohort_v3',
+        'pilotstudy_cohort_v4',
         async () => {
           const res = await supabase
             .from('pilotstudy')
@@ -335,7 +337,9 @@ export class PilotStudyRealtimeDatabase {
           { event: '*', schema: 'public', table: 'pilotstudy' },
           (payload) => {
             console.log('[pilotstudy] Live Realtime change received:', payload);
-            appQueryCache.invalidate('pilotstudy_cohort_v3');
+            appQueryCache.invalidate('pilotstudy_cohort_v4');
+            appQueryCache.invalidate('pilotstudy_cohort_v4');
+      appQueryCache.invalidate('pilotstudy_cohort_v3');
             this.handleRealtimePayload(payload);
           }
         )
@@ -507,6 +511,7 @@ export class PilotStudyRealtimeDatabase {
       }
 
       // Invalidate query cache so any subsequent reads or background refetches get fresh data
+      appQueryCache.invalidate('pilotstudy_cohort_v4');
       appQueryCache.invalidate('pilotstudy_cohort_v3');
 
       this.isSaving = false;

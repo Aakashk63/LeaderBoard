@@ -916,14 +916,18 @@ export class AttendanceService {
       // 2. Enrich and compute arrival & logout rankings
       const enriched = enrichAttendanceRecords(allRecords);
 
+      // Auto-scoring begins strictly from tomorrow onwards (dateStr > '2026-11-03')
+      // For today (2026-11-03), all students stay at baseline 10 points
+      const isAutoScoringActive = dateStr > '2026-11-03';
+
       // Create maps of points for this date
       const pointsMap = {};
       enriched.forEach(r => {
         pointsMap[r.student_id] = {
-          early_bird: r.early_bird_points || 0,
-          night_owl: r.night_owl_points || 0,
-          is_early_bird: Boolean(r.is_early_bird),
-          is_night_owl: Boolean(r.is_night_owl)
+          early_bird: isAutoScoringActive ? (r.early_bird_points || 0) : 0,
+          night_owl: isAutoScoringActive ? (r.night_owl_points || 0) : 0,
+          is_early_bird: isAutoScoringActive ? Boolean(r.is_early_bird) : false,
+          is_night_owl: isAutoScoringActive ? Boolean(r.is_night_owl) : false
         };
       });
 
@@ -980,6 +984,7 @@ export class AttendanceService {
       await Promise.all(updatePromises);
 
       // Invalidate caches
+      appQueryCache.invalidate('pilotstudy_cohort_v4');
       appQueryCache.invalidate('pilotstudy_cohort_v3');
       appQueryCache.invalidate('pilotstudy_cohort');
       appQueryCache.invalidate('student_attendance_all');
@@ -1116,8 +1121,9 @@ export class AttendanceService {
       arrivalOrder = otherLogins.length + 1;
     }
 
-    const earlyBirdPoints = Math.max(1, 21 - arrivalOrder);
-    const isEarlyBird = true;
+    const isAutoScoringDate = today > '2026-11-03';
+    const earlyBirdPoints = isAutoScoringDate ? Math.max(1, 21 - arrivalOrder) : 0;
+    const isEarlyBird = isAutoScoringDate;
     const isNightOwl = false;
 
     // Save authoritative record to Supabase using only PostgreSQL schema-valid columns
@@ -1307,8 +1313,9 @@ export class AttendanceService {
     record.logout_longitude = coords.longitude;
     record.logout_accuracy_meters = coords.accuracy;
     record.logout_location_verified = true;
+    const isNightOwlAward = (today > '2026-11-03') && isAfter430;
     record.status = 'completed';
-    record.is_night_owl = isAfter430;
+    record.is_night_owl = isNightOwlAward;
 
     // Persist to Supabase with PostgreSQL schema-valid columns, strictly preserving check-in data
     try {
@@ -1326,8 +1333,8 @@ export class AttendanceService {
         logout_accuracy_meters: coords.accuracy,
         logout_location_verified: true,
         status: 'completed',
-        is_early_bird: record.is_early_bird !== undefined ? record.is_early_bird : true,
-        is_night_owl: isAfter430,
+        is_early_bird: Boolean(record.is_early_bird),
+        is_night_owl: isNightOwlAward,
         updated_at: nowIso
       };
       await supabase
