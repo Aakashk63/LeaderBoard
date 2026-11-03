@@ -270,21 +270,13 @@ export class PilotStudyRealtimeDatabase {
       // Cyclic import fallback
     }
 
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    const isAutoScoringActive = today >= '2026-11-04'; // From next day onwards
-
-    if (isAutoScoringActive && att) {
+    if (att) {
       if (att.todayEarlyPoints !== undefined && att.todayEarlyPoints > earlyBirdPts) {
         earlyBirdPts = att.todayEarlyPoints;
-      } else if (att.wonTodayEarly && earlyBirdPts === 0) {
-        earlyBirdPts = att.todayEarlyPoints || 20;
       }
-      if (att.wonTodayNight && nightOwlPts === 0) {
-        nightOwlPts = 10;
+      if (att.todayNightPoints !== undefined && att.todayNightPoints > nightOwlPts) {
+        nightOwlPts = att.todayNightPoints;
       }
-    } else if (!isAutoScoringActive) {
-      earlyBirdPts = 0;
-      nightOwlPts = 0;
     }
 
     categoryScores.early_bird = earlyBirdPts;

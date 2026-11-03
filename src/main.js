@@ -10,6 +10,7 @@ import {
   LOCATION_STATES,
   formatISTTime,
   formatISTDate,
+  isAfter430PMIST,
   isStrictlyAfter6PMIST,
   getTodayISTDateString,
   calculateHaversineDistance,
@@ -285,20 +286,18 @@ function initDashboard() {
     const authUser = authService.getCurrentStudent();
     if (authUser && (authUser.role === 'student' || authUser.student_id?.startsWith('std-'))) {
       const today = getTodayISTDateString();
-      if (today >= '2026-11-04') {
-        const existingRec = attendanceService.attendanceRecords.find(
-          r => r.student_id === authUser.student_id && r.attendance_date === today && r.login_at
-        );
-        if (!existingRec) {
-          try {
-            const res = await attendanceService.performCheckIn(authUser.student_id);
-            if (res && res.success) {
-              await pilotstudyDb.fetchFromSupabase({ force: true });
-              await attendanceService.fetchFromSupabase({ force: true });
-            }
-          } catch (err) {
-            console.warn('[attendance] Session restore auto check-in notice:', err);
+      const existingRec = attendanceService.attendanceRecords.find(
+        r => r.student_id === authUser.student_id && r.attendance_date === today && r.login_at
+      );
+      if (!existingRec) {
+        try {
+          const res = await attendanceService.performCheckIn(authUser.student_id);
+          if (res && res.success) {
+            await pilotstudyDb.fetchFromSupabase({ force: true });
+            await attendanceService.fetchFromSupabase({ force: true });
           }
+        } catch (err) {
+          console.warn('[attendance] Session restore auto check-in notice:', err);
         }
       }
     }
@@ -1417,13 +1416,12 @@ function renderAttendanceDashboard() {
   if (elements.todayNightOwlWinner) {
     if (todayNight && todayNight.status === 'awarded' && todayNight.winning_student_id) {
       const winner = pilotstudyDb.getStudentById(todayNight.winning_student_id);
-      elements.todayNightOwlWinner.textContent = `${winner?.student_name || todayNight.winning_student_id} (Winner • +10 pts)`;
-      if (elements.todayNightOwlTime) elements.todayNightOwlTime.textContent = `Checkout: ${formatISTTime(todayNight.winning_timestamp)}`;
+      elements.todayNightOwlWinner.textContent = `${winner?.student_name || todayNight.winning_student_id} (Last Logout • +20 pts)`;
+      if (elements.todayNightOwlTime) elements.todayNightOwlTime.textContent = `Checkout: ${formatISTTime(todayNight.winning_timestamp)} • Subsequent logouts ranked from last to first (19, 18, 17... pts)`;
     } else {
-      const now = new Date();
-      const hour = parseInt(now.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false }), 10);
-      elements.todayNightOwlWinner.textContent = hour >= 18 ? 'Evaluating latest checkout...' : 'Window opens strictly after 6:00 PM IST';
-      if (elements.todayNightOwlTime) elements.todayNightOwlTime.textContent = 'Latest verified checkout strictly after 18:00 IST';
+      const isAfter430 = isAfter430PMIST(new Date().toISOString());
+      elements.todayNightOwlWinner.textContent = isAfter430 ? 'Evaluating latest checkout...' : 'Window opens after 4:30 PM IST';
+      if (elements.todayNightOwlTime) elements.todayNightOwlTime.textContent = 'Last student to logout after 4:30 PM gets 20 pts, one before gets 19, and so on';
     }
   }
 

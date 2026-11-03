@@ -49,6 +49,8 @@ export const TIMEZONE = 'Asia/Kolkata';
 
 /**
  * Deterministically compute arrival order, early bird points, logout order, and checkout points
+ * - Login: 1st gets 20 pts, 2nd gets 19, 3rd gets 18... (-1 pt each, min 1 pt)
+ * - Logout after 4:30 PM: Ranked from LAST to FIRST (last gets 20 pts, one before gets 19, next gets 18...)
  */
 export function enrichAttendanceRecords(records) {
   if (!Array.isArray(records)) return [];
@@ -60,17 +62,15 @@ export function enrichAttendanceRecords(records) {
   });
 
   Object.values(byDate).forEach(dayList => {
-    const isAutoScoringActive = (dayList[0]?.attendance_date || dayList[0]?.date) >= '2026-11-04';
-
-    // 1. Arrival Order & Login Points (1st gets 20 pts, 2nd gets 19, ..., -1 pt each from next day onwards)
+    // 1. Arrival Order & Login Points (1st gets 20 pts, 2nd gets 19, ..., -1 pt each, min 1 pt)
     const verifiedLogins = dayList
       .filter(r => r.login_at && (r.login_location_verified || r.login_at))
       .sort((a, b) => new Date(a.login_at).getTime() - new Date(b.login_at).getTime());
 
     verifiedLogins.forEach((rec, idx) => {
       rec.arrival_order = idx + 1;
-      rec.early_bird_points = isAutoScoringActive ? Math.max(0, 21 - (idx + 1)) : 0;
-      rec.is_early_bird = rec.early_bird_points > 0;
+      rec.early_bird_points = Math.max(1, 21 - (idx + 1));
+      rec.is_early_bird = true;
     });
 
     dayList.forEach(rec => {
@@ -81,21 +81,24 @@ export function enrichAttendanceRecords(records) {
       }
     });
 
-    // 2. Checkout Order & Logout Points (1st gets 1 pt, 2nd gets 2, ..., last gets up to 20 pts from next day onwards)
-    const verifiedLogouts = dayList
-      .filter(r => r.logout_at && (r.logout_location_verified || r.status === 'completed'))
-      .sort((a, b) => new Date(a.logout_at).getTime() - new Date(b.logout_at).getTime());
+    // 2. Checkout Order & Logout Points: After 4:30 PM, ranked from LAST to FIRST
+    // The last student to logout gets 20 points, the one before gets 19, and so on
+    const verifiedLogoutsAfter430 = dayList
+      .filter(r => r.logout_at && (r.logout_location_verified || r.status === 'completed') && isAfter430PMIST(r.logout_at))
+      .sort((a, b) => new Date(b.logout_at).getTime() - new Date(a.logout_at).getTime()); // DESCENDING: latest (last) logout first!
 
-    verifiedLogouts.forEach((rec, idx) => {
-      rec.logout_order = idx + 1;
-      rec.logout_points = isAutoScoringActive ? Math.min(20, idx + 1) : 0;
+    verifiedLogoutsAfter430.forEach((rec, idx) => {
+      rec.logout_order = idx + 1; // 1 = last student to logout, 2 = one before, etc.
+      rec.logout_points = Math.max(1, 21 - (idx + 1)); // 20, 19, 18...
       rec.night_owl_points = rec.logout_points;
-      rec.is_night_owl = rec.logout_points > 0;
+      rec.is_night_owl = true;
     });
 
     dayList.forEach(rec => {
-      if (!rec.logout_at) {
-        rec.logout_order = null;
+      if (!rec.logout_at || !isAfter430PMIST(rec.logout_at)) {
+        if (!rec.logout_at) {
+          rec.logout_order = null;
+        }
         rec.logout_points = 0;
         rec.night_owl_points = 0;
         rec.is_night_owl = false;
@@ -330,6 +333,22 @@ export function isEarlyBirdTimeIST(isoString) {
   const min = parseInt(parts[1], 10);
   const totalMins = hour * 60 + min;
   return totalMins <= 570; // 09:30 AM IST (570 minutes from midnight)
+}
+
+/**
+ * Check if an ISO timestamp occurred strictly at or after 16:30 (4:30 PM) in IST
+ */
+export function isAfter430PMIST(isoString) {
+  if (!isoString) return false;
+  const date = new Date(isoString);
+  const timeStr = date.toLocaleTimeString('en-GB', {
+    timeZone: TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  const [hour, min] = timeStr.split(':').map(Number);
+  return (hour * 60 + min) >= (16 * 60 + 30); // 16:30 IST = 990 minutes from midnight
 }
 
 /**
@@ -865,68 +884,76 @@ export class AttendanceService {
   }
 
   /**
-   * Synchronize auto-awarded Early Bird and Late Night Owl points to pilotstudy table in Supabase
+   * Synchronize all students' daily login and logout points automatically to the Supabase database
+   * - Login: Ranked by login time (1st gets 20 pts, 2nd gets 19 pts, 3rd gets 18 pts...)
+   * - Logout: After 4:30 PM, ranked from LAST to FIRST (last gets 20 pts, one before gets 19 pts, next gets 18 pts...)
+   * - Completes securely and writes to Supabase database within 2 seconds
    */
-  async syncStudentPointsForAwards(studentId, { isEarlyBird = false, earlyBirdPoints = 0, isNightOwl = false, nightOwlPoints = 0 }) {
-    if (!studentId) return;
+  async syncAllDailyAttendancePoints(dateStr = getTodayISTDateString()) {
     try {
-      const today = getTodayDateIST();
-      const isAutoScoringActive = today >= '2026-11-04';
-      if (!isAutoScoringActive) {
-        earlyBirdPoints = 0;
-        nightOwlPoints = 0;
-        isEarlyBird = false;
-        isNightOwl = false;
+      // 1. Fetch current day attendance records from Supabase
+      const { data: records, error: fetchErr } = await supabase
+        .from('student_attendance')
+        .select('*')
+        .eq('attendance_date', dateStr);
+
+      if (fetchErr) {
+        console.warn('[attendance] syncAllDailyAttendancePoints fetch error:', fetchErr);
+        return;
       }
 
-      // 1. Fetch current student record from pilotstudy table
-      const { data: stdData, error: stdErr } = await supabase
+      const allRecords = Array.isArray(records) ? records : [];
+      if (allRecords.length === 0) return;
+
+      // 2. Enrich and compute arrival & logout rankings
+      const enriched = enrichAttendanceRecords(allRecords);
+
+      // Create maps of points for this date
+      const pointsMap = {};
+      enriched.forEach(r => {
+        pointsMap[r.student_id] = {
+          early_bird: r.early_bird_points || 0,
+          night_owl: r.night_owl_points || 0,
+          is_early_bird: Boolean(r.is_early_bird),
+          is_night_owl: Boolean(r.is_night_owl)
+        };
+      });
+
+      const studentIds = Object.keys(pointsMap);
+      if (studentIds.length === 0) return;
+
+      // 3. Fetch current student records from pilotstudy to preserve mentor review & one-time scores
+      const { data: students, error: stdErr } = await supabase
         .from('pilotstudy')
         .select('*')
-        .eq('id', studentId)
-        .single();
+        .in('id', studentIds);
 
-      const currentScores = { ...(stdData?.category_scores || {}) };
-      let changed = false;
+      if (stdErr || !students || students.length === 0) return;
 
-      if (!isAutoScoringActive) {
-        if (Number(currentScores.early_bird) !== 0) {
-          currentScores.early_bird = 0;
-          changed = true;
-        }
-        if (Number(currentScores.night_owl) !== 0) {
-          currentScores.night_owl = 0;
-          changed = true;
-        }
-      } else {
-        if (isEarlyBird && Number(currentScores.early_bird) !== earlyBirdPoints) {
-          currentScores.early_bird = earlyBirdPoints;
-          changed = true;
-        }
-        if (isNightOwl && Number(currentScores.night_owl) !== nightOwlPoints) {
-          currentScores.night_owl = nightOwlPoints;
-          changed = true;
-        }
-        if (earlyBirdPoints > 0 && currentScores.early_bird !== earlyBirdPoints) {
-          currentScores.early_bird = earlyBirdPoints;
-          changed = true;
-        }
-      }
+      // 4. Update all affected students in parallel (completed within milliseconds)
+      const allCatIds = [
+        'early_bird', 'night_owl', 'today_review', 'leetcode', 'empathizer',
+        'workbench', 'frontend', 'dt_playbook', 'assessment',
+        'okr', 'all_rounder', 'team_lead'
+      ];
 
-      if (changed || earlyBirdPoints > 0) {
-        const allCatIds = [
-          'early_bird', 'night_owl', 'today_review', 'leetcode', 'empathizer',
-          'workbench', 'frontend', 'dt_playbook', 'assessment',
-          'okr', 'all_rounder', 'team_lead'
-        ];
+      const nowIso = new Date().toISOString();
+      const updatePromises = students.map(std => {
+        const studentPts = pointsMap[std.id] || { early_bird: 0, night_owl: 0 };
+        const currentScores = { ...(std.category_scores || {}) };
+
+        currentScores.early_bird = studentPts.early_bird;
+        currentScores.night_owl = studentPts.night_owl;
+
         let total = 0;
         allCatIds.forEach(id => {
           total += Number(currentScores[id]) || 0;
         });
-        const attendancePts = (Number(currentScores.early_bird) || 0) + (Number(currentScores.night_owl) || 0);
+
+        const attendancePts = currentScores.early_bird + currentScores.night_owl;
         const percentage = Math.round((total / 145) * 1000) / 10;
 
-        await supabase
+        return supabase
           .from('pilotstudy')
           .update({
             category_scores: currentScores,
@@ -935,40 +962,41 @@ export class AttendanceService {
             base_points: total,
             cumulative_points: total,
             percentage,
-            early_bird_count: isEarlyBird ? 1 : (stdData?.early_bird_count || 0),
-            night_owl_count: isNightOwl ? 1 : (stdData?.night_owl_count || 0),
-            updated_at: new Date().toISOString()
+            early_bird_count: studentPts.is_early_bird ? 1 : 0,
+            night_owl_count: studentPts.is_night_owl ? 1 : 0,
+            updated_at: nowIso
           })
-          .eq('id', studentId);
+          .eq('id', std.id);
+      });
 
-        // Invalidate cache
-        appQueryCache.invalidate('pilotstudy_cohort_v3');
-        appQueryCache.invalidate('pilotstudy_cohort');
+      await Promise.all(updatePromises);
 
-        // Update local pilotstudyDb if registered
-        const db = getPilotstudyDb();
-        if (db) {
-          if (typeof db.fetchFromSupabase === 'function') {
-            await db.fetchFromSupabase({ force: true });
-          } else if (db.getStudentById) {
-            const localStd = db.getStudentById(studentId);
-            if (localStd) {
-              localStd.category_scores = currentScores;
-              localStd.attendance_points = attendancePts;
-              localStd.total_points = total;
-              localStd.base_points = total;
-              localStd.cumulative_points = total;
-              localStd.percentage = percentage;
-              db.recalculateRanks();
-              db.saveToCache();
-              db.emit('change', db.getStudents());
-            }
-          }
+      // Invalidate caches
+      appQueryCache.invalidate('pilotstudy_cohort_v3');
+      appQueryCache.invalidate('pilotstudy_cohort');
+      appQueryCache.invalidate('student_attendance_all');
+      appQueryCache.invalidate('daily_attendance_awards_all');
+
+      // Update in-memory pilotstudy database and emit change event
+      const db = getPilotstudyDb();
+      if (db) {
+        if (typeof db.fetchFromSupabase === 'function') {
+          await db.fetchFromSupabase({ force: true });
         }
       }
-    } catch (e) {
-      console.warn('[attendance] Error syncing student auto-awards to Supabase:', e);
+      this.recalculateDailyAwards(dateStr);
+      this.emit('change', { attendance: this.attendanceRecords, awards: this.dailyAwards });
+    } catch (err) {
+      console.warn('[attendance] syncAllDailyAttendancePoints exception:', err);
     }
+  }
+
+  /**
+   * Synchronize auto-awarded Early Bird and Late Night Owl points to pilotstudy table in Supabase
+   */
+  async syncStudentPointsForAwards(studentId, { isEarlyBird = false, earlyBirdPoints = 0, isNightOwl = false, nightOwlPoints = 0 }) {
+    if (!studentId) return;
+    await this.syncAllDailyAttendancePoints(getTodayISTDateString());
   }
 
   /**
@@ -986,31 +1014,14 @@ export class AttendanceService {
       r => r.student_id === studentId && (r.attendance_date === today || r.date === today)
     );
     if (existing && existing.login_at && existing.login_location_verified) {
-      const isAutoScoringActive = today >= '2026-11-04';
-      const earlyPts = isAutoScoringActive
-        ? (existing.early_bird_points !== undefined 
-            ? existing.early_bird_points 
-            : (existing.arrival_order ? Math.max(0, 21 - existing.arrival_order) : 0))
-        : 0;
-      const logoutPts = isAutoScoringActive
-        ? (existing.logout_points !== undefined ? existing.logout_points : (existing.night_owl_points || 0))
-        : 0;
-
-      // Make sure points are guaranteed synced to pilotstudy table
-      await this.syncStudentPointsForAwards(studentId, {
-        isEarlyBird: isAutoScoringActive && (existing.is_early_bird || earlyPts > 0),
-        earlyBirdPoints: earlyPts,
-        isNightOwl: isAutoScoringActive && Boolean(existing.is_night_owl && logoutPts > 0),
-        nightOwlPoints: logoutPts
-      });
-
+      await this.syncAllDailyAttendancePoints(today);
       return {
         success: false,
         alreadyCheckedIn: true,
         message: `Already checked in today at ${formatISTTime(existing.login_at)}. Points verified.`,
         record: existing,
-        earlyBirdAwarded: Boolean(existing.is_early_bird || earlyPts > 0),
-        earlyBirdPoints: earlyPts,
+        earlyBirdAwarded: Boolean(existing.is_early_bird || existing.early_bird_points > 0),
+        earlyBirdPoints: existing.early_bird_points || 0,
         nightOwlAwarded: Boolean(existing.is_night_owl)
       };
     }
@@ -1066,10 +1077,9 @@ export class AttendanceService {
       arrivalOrder = otherLogins.length + 1;
     }
 
-    const isAutoScoringActive = today >= '2026-11-04';
-    const earlyBirdPoints = isAutoScoringActive ? Math.max(0, 21 - arrivalOrder) : 0;
-    const isEarlyBird = earlyBirdPoints > 0;
-    const isNightOwl = isAutoScoringActive && isStrictlyAfter6PMIST(loginTimeIso);
+    const earlyBirdPoints = Math.max(1, 21 - arrivalOrder);
+    const isEarlyBird = true;
+    const isNightOwl = false;
 
     // Save authoritative record to Supabase using only PostgreSQL schema-valid columns
     const dbPayload = {
@@ -1128,7 +1138,7 @@ export class AttendanceService {
       early_bird_points: earlyBirdPoints,
       is_early_bird: isEarlyBird,
       is_night_owl: isNightOwl,
-      night_owl_points: isNightOwl ? 10 : 0
+      night_owl_points: 0
     };
 
     // Save locally and update in-memory attendance list
@@ -1142,28 +1152,8 @@ export class AttendanceService {
     }
     this.attendanceRecords = enrichAttendanceRecords(this.attendanceRecords);
 
-    // Recalculate and persist daily awards
-    this.recalculateDailyAwards(today);
-
-    // Auto-fill points into student pilotstudy table record
-    await this.syncStudentPointsForAwards(studentId, {
-      isEarlyBird,
-      earlyBirdPoints,
-      isNightOwl,
-      nightOwlPoints: isNightOwl ? (newRecord.night_owl_points || 0) : 0
-    });
-
-    // Also re-sync all today's checked-in students' points in pilotstudy table to guarantee consistency
-    for (const rec of this.attendanceRecords.filter(r => r.attendance_date === today && r.login_location_verified)) {
-      if (rec.student_id !== studentId) {
-        this.syncStudentPointsForAwards(rec.student_id, {
-          isEarlyBird: rec.is_early_bird,
-          earlyBirdPoints: rec.early_bird_points || 0,
-          isNightOwl: rec.is_night_owl,
-          nightOwlPoints: rec.night_owl_points || 0
-        }).catch(() => {});
-      }
-    }
+    // Auto-rank and sync all attendance points to Supabase database within 2 seconds
+    await this.syncAllDailyAttendancePoints(today);
 
     this.saveToCache();
 
@@ -1174,14 +1164,7 @@ export class AttendanceService {
 
     this.emit('change', { attendance: this.attendanceRecords, awards: this.dailyAwards });
 
-    let awardNotice = '';
-    if (earlyBirdPoints > 0 && isNightOwl) {
-      awardNotice = ` (Arrival #${arrivalOrder}: +${earlyBirdPoints} pts & Late Night Owl +10 pts auto-awarded!)`;
-    } else if (earlyBirdPoints > 0) {
-      awardNotice = ` (Arrival #${arrivalOrder}: +${earlyBirdPoints} pts auto-awarded!)`;
-    } else if (isNightOwl) {
-      awardNotice = ' (Late Night Owl +10 pts auto-awarded!)';
-    }
+    const awardNotice = ` (Arrival #${arrivalOrder}: +${earlyBirdPoints} pts auto-awarded!)`;
 
     return {
       success: true,
@@ -1267,12 +1250,7 @@ export class AttendanceService {
       allToday = this.attendanceRecords.filter(r => (r.attendance_date === today || r.date === today));
     }
 
-    const isAutoScoringActive = today >= '2026-11-04';
-    // Calculate logout order: count other verified checkouts for today
-    const otherLogouts = allToday.filter(r => r.student_id !== studentId && r.logout_at);
-    const logoutOrder = otherLogouts.length + 1;
-    // 1st person to logout gets 1 mark, next gets 2 marks, ..., up to 20 marks from next day onwards
-    const logoutPoints = isAutoScoringActive ? Math.min(20, Math.max(1, logoutOrder)) : 0;
+    const isAfter430 = isAfter430PMIST(nowIso);
 
     record.logout_at = nowIso;
     record.logout_latitude = coords.latitude;
@@ -1280,10 +1258,7 @@ export class AttendanceService {
     record.logout_accuracy_meters = coords.accuracy;
     record.logout_location_verified = true;
     record.status = 'completed';
-    record.is_night_owl = true;
-    record.logout_order = logoutOrder;
-    record.logout_points = logoutPoints;
-    record.night_owl_points = logoutPoints;
+    record.is_night_owl = isAfter430;
 
     // Persist to Supabase with PostgreSQL schema-valid columns, strictly preserving check-in data
     try {
@@ -1302,7 +1277,7 @@ export class AttendanceService {
         logout_location_verified: true,
         status: 'completed',
         is_early_bird: record.is_early_bird !== undefined ? record.is_early_bird : true,
-        is_night_owl: true,
+        is_night_owl: isAfter430,
         updated_at: nowIso
       };
       await supabase
@@ -1312,17 +1287,11 @@ export class AttendanceService {
       console.warn('[attendance] Supabase checkout upsert warning:', err);
     }
 
-    // Recalculate Daily Awards for Today
-    this.recalculateDailyAwards(today);
+    // Auto-rank and sync all attendance points to Supabase database within 2 seconds
+    await this.syncAllDailyAttendancePoints(today);
 
-    // Auto-fill logout order points in pilotstudy table, preserving early bird points
-    const existingEarly = isAutoScoringActive ? (record.early_bird_points || 0) : 0;
-    await this.syncStudentPointsForAwards(studentId, {
-      isEarlyBird: isAutoScoringActive && existingEarly > 0,
-      earlyBirdPoints: existingEarly,
-      isNightOwl: isAutoScoringActive && logoutPoints > 0,
-      nightOwlPoints: logoutPoints
-    });
+    this.attendanceRecords = enrichAttendanceRecords(this.attendanceRecords);
+    const updatedRecord = this.attendanceRecords.find(r => r.student_id === studentId && (r.attendance_date === today || r.date === today)) || record;
 
     this.saveToCache();
 
@@ -1336,13 +1305,20 @@ export class AttendanceService {
 
     this.emit('change', { attendance: this.attendanceRecords, awards: this.dailyAwards });
 
+    const logoutOrder = updatedRecord.logout_order || 1;
+    const logoutPoints = updatedRecord.logout_points || 0;
+
+    const message = isAfter430
+      ? `Verified check-out at SNS College of Technology at ${formatISTTime(nowIso)}. Last-to-First Logout #${logoutOrder}: +${logoutPoints} pt${logoutPoints === 1 ? '' : 's'} awarded!`
+      : `Checked out at ${formatISTTime(nowIso)}. (Note: Logout reward points open after 4:30 PM IST).`;
+
     return {
       success: true,
-      message: `Verified check-out at SNS College of Technology at ${formatISTTime(nowIso)}. Logout Order #${logoutOrder}: +${logoutPoints} pt${logoutPoints === 1 ? '' : 's'} awarded!`,
-      record,
+      message,
+      record: updatedRecord,
       logoutOrder,
       logoutPoints,
-      nightOwlAwarded: true
+      nightOwlAwarded: isAfter430 && logoutPoints > 0
     };
   }
 
@@ -1364,20 +1340,15 @@ export class AttendanceService {
       earlyBirdWinner = sortedByLogin[0];
     }
 
-    // 2. Late Night Owl: Latest valid checkout strictly after 18:00 IST or checkin after 18:00
+    // 2. Late Night Owl: Latest valid checkout after 4:30 PM IST (Gets 20 pts)
     let nightOwlWinner = null;
     const eligibleNightRecords = dayRecords.filter(
-      r => (r.logout_location_verified && r.logout_at && isStrictlyAfter6PMIST(r.logout_at)) ||
-           (r.login_location_verified && r.login_at && isStrictlyAfter6PMIST(r.login_at))
+      r => r.logout_location_verified && r.logout_at && isAfter430PMIST(r.logout_at)
     );
 
     if (eligibleNightRecords.length > 0) {
       const sortedByTime = [...eligibleNightRecords].sort(
-        (a, b) => {
-          const tA = new Date(a.logout_at || a.login_at).getTime();
-          const tB = new Date(b.logout_at || b.login_at).getTime();
-          return tB - tA;
-        }
+        (a, b) => new Date(b.logout_at).getTime() - new Date(a.logout_at).getTime()
       );
       nightOwlWinner = sortedByTime[0];
     }
@@ -1398,11 +1369,11 @@ export class AttendanceService {
       dateStr,
       'night_owl',
       nightOwlWinner ? nightOwlWinner.student_id : null,
-      nightOwlWinner ? 10 : 0,
-      nightOwlWinner ? (nightOwlWinner.logout_at || nightOwlWinner.login_at) : null,
+      nightOwlWinner ? 20 : 0,
+      nightOwlWinner ? nightOwlWinner.logout_at : null,
       nightOwlWinner
-        ? `Latest verified attendance after 6:00 PM at ${formatISTTime(nightOwlWinner.logout_at || nightOwlWinner.login_at)}`
-        : 'No eligible checkouts or logins recorded strictly after 6:00 PM IST'
+        ? `Last Logout: Latest verified checkout after 4:30 PM at ${formatISTTime(nightOwlWinner.logout_at)} (+20 pts)`
+        : 'No eligible checkouts recorded after 4:30 PM IST'
     );
   }
 
@@ -1517,10 +1488,10 @@ export class AttendanceService {
     const todayRec = summary.todayRecord;
     const todayEarlyPts = todayRec?.early_bird_points !== undefined
       ? todayRec.early_bird_points
-      : (todayRec?.arrival_order ? Math.max(0, 21 - todayRec.arrival_order) : (todayRec?.is_early_bird ? 20 : 0));
+      : (todayRec?.arrival_order ? Math.max(1, 21 - todayRec.arrival_order) : 0);
     const todayNightPts = todayRec?.night_owl_points !== undefined
       ? todayRec.night_owl_points
-      : (todayRec?.is_night_owl ? 10 : 0);
+      : (todayRec?.logout_order && isAfter430PMIST(todayRec.logout_at) ? Math.max(1, 21 - todayRec.logout_order) : 0);
 
     return {
       ...summary,
