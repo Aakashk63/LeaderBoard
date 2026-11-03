@@ -867,9 +867,18 @@ export class AttendanceService {
   /**
    * Synchronize auto-awarded Early Bird and Late Night Owl points to pilotstudy table in Supabase
    */
-  async syncStudentPointsForAwards(studentId, { isEarlyBird = false, earlyBirdPoints = 0, isNightOwl = false, nightOwlPoints = 10 }) {
+  async syncStudentPointsForAwards(studentId, { isEarlyBird = false, earlyBirdPoints = 0, isNightOwl = false, nightOwlPoints = 0 }) {
     if (!studentId) return;
     try {
+      const today = getTodayDateIST();
+      const isAutoScoringActive = today >= '2026-11-04';
+      if (!isAutoScoringActive) {
+        earlyBirdPoints = 0;
+        nightOwlPoints = 0;
+        isEarlyBird = false;
+        isNightOwl = false;
+      }
+
       // 1. Fetch current student record from pilotstudy table
       const { data: stdData, error: stdErr } = await supabase
         .from('pilotstudy')
@@ -880,17 +889,28 @@ export class AttendanceService {
       const currentScores = { ...(stdData?.category_scores || {}) };
       let changed = false;
 
-      if (isEarlyBird && Number(currentScores.early_bird) !== earlyBirdPoints) {
-        currentScores.early_bird = earlyBirdPoints;
-        changed = true;
-      }
-      if (isNightOwl && Number(currentScores.night_owl) !== nightOwlPoints) {
-        currentScores.night_owl = nightOwlPoints;
-        changed = true;
-      }
-      if (earlyBirdPoints > 0 && currentScores.early_bird !== earlyBirdPoints) {
-        currentScores.early_bird = earlyBirdPoints;
-        changed = true;
+      if (!isAutoScoringActive) {
+        if (Number(currentScores.early_bird) !== 0) {
+          currentScores.early_bird = 0;
+          changed = true;
+        }
+        if (Number(currentScores.night_owl) !== 0) {
+          currentScores.night_owl = 0;
+          changed = true;
+        }
+      } else {
+        if (isEarlyBird && Number(currentScores.early_bird) !== earlyBirdPoints) {
+          currentScores.early_bird = earlyBirdPoints;
+          changed = true;
+        }
+        if (isNightOwl && Number(currentScores.night_owl) !== nightOwlPoints) {
+          currentScores.night_owl = nightOwlPoints;
+          changed = true;
+        }
+        if (earlyBirdPoints > 0 && currentScores.early_bird !== earlyBirdPoints) {
+          currentScores.early_bird = earlyBirdPoints;
+          changed = true;
+        }
       }
 
       if (changed || earlyBirdPoints > 0) {
@@ -904,7 +924,7 @@ export class AttendanceService {
           total += Number(currentScores[id]) || 0;
         });
         const attendancePts = (Number(currentScores.early_bird) || 0) + (Number(currentScores.night_owl) || 0);
-        const percentage = Math.round((total / 125) * 1000) / 10;
+        const percentage = Math.round((total / 145) * 1000) / 10;
 
         await supabase
           .from('pilotstudy')
@@ -966,16 +986,22 @@ export class AttendanceService {
       r => r.student_id === studentId && (r.attendance_date === today || r.date === today)
     );
     if (existing && existing.login_at && existing.login_location_verified) {
-      const earlyPts = existing.early_bird_points !== undefined 
-        ? existing.early_bird_points 
-        : (existing.arrival_order ? Math.max(0, 21 - existing.arrival_order) : (existing.is_early_bird ? 20 : 0));
+      const isAutoScoringActive = today >= '2026-11-04';
+      const earlyPts = isAutoScoringActive
+        ? (existing.early_bird_points !== undefined 
+            ? existing.early_bird_points 
+            : (existing.arrival_order ? Math.max(0, 21 - existing.arrival_order) : 0))
+        : 0;
+      const logoutPts = isAutoScoringActive
+        ? (existing.logout_points !== undefined ? existing.logout_points : (existing.night_owl_points || 0))
+        : 0;
 
       // Make sure points are guaranteed synced to pilotstudy table
       await this.syncStudentPointsForAwards(studentId, {
-        isEarlyBird: existing.is_early_bird || earlyPts > 0,
+        isEarlyBird: isAutoScoringActive && (existing.is_early_bird || earlyPts > 0),
         earlyBirdPoints: earlyPts,
-        isNightOwl: existing.is_night_owl,
-        nightOwlPoints: existing.night_owl_points || 10
+        isNightOwl: isAutoScoringActive && Boolean(existing.is_night_owl && logoutPts > 0),
+        nightOwlPoints: logoutPts
       });
 
       return {
@@ -1124,7 +1150,7 @@ export class AttendanceService {
       isEarlyBird,
       earlyBirdPoints,
       isNightOwl,
-      nightOwlPoints: 10
+      nightOwlPoints: isNightOwl ? (newRecord.night_owl_points || 0) : 0
     });
 
     // Also re-sync all today's checked-in students' points in pilotstudy table to guarantee consistency
@@ -1290,11 +1316,11 @@ export class AttendanceService {
     this.recalculateDailyAwards(today);
 
     // Auto-fill logout order points in pilotstudy table, preserving early bird points
-    const existingEarly = record.early_bird_points || 0;
+    const existingEarly = isAutoScoringActive ? (record.early_bird_points || 0) : 0;
     await this.syncStudentPointsForAwards(studentId, {
-      isEarlyBird: existingEarly > 0,
+      isEarlyBird: isAutoScoringActive && existingEarly > 0,
       earlyBirdPoints: existingEarly,
-      isNightOwl: true,
+      isNightOwl: isAutoScoringActive && logoutPoints > 0,
       nightOwlPoints: logoutPoints
     });
 

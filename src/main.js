@@ -554,6 +554,11 @@ function renderDesktopPodium(rankedList) {
 function renderDesktopRows(rankedList) {
   if (!elements.desktopRowsContainer) return;
 
+  const pillCount = document.getElementById('statPillCohortCount');
+  if (pillCount) pillCount.textContent = `${rankedList.length} Students`;
+  const pillMax = document.getElementById('statPillMaxPoints');
+  if (pillMax) pillMax.textContent = `Base Max ${MAX_SCORE} pts`;
+
   let filtered = rankedList;
   if (searchQuery.trim()) {
     const q = searchQuery.toLowerCase().trim();
@@ -619,7 +624,7 @@ function renderDesktopRows(rankedList) {
             <span class="row-student-name">${escapeHtml(student.student_name)}</span>
             ${badgesHtml}
           </div>
-          <span class="row-student-meta">ID: ${student.id} • Base Period: ${baseScore}/115 (${student.percentage}%)</span>
+          <span class="row-student-meta">ID: ${student.id} • Base Period: ${baseScore}/${MAX_SCORE} (${student.percentage}%)</span>
         </div>
 
         <!-- Col 4: Score Progress Bar -->
@@ -629,7 +634,7 @@ function renderDesktopRows(rankedList) {
             <span style="font-weight: 800; color: var(--accent-lime);">${cumScore} pts</span>
           </div>
           <div class="desktop-bar-track">
-            <div class="desktop-bar-fill" style="width: ${Math.min(100, Math.round((cumScore / 115) * 100))}%;"></div>
+            <div class="desktop-bar-fill" style="width: ${Math.min(100, Math.round((cumScore / MAX_SCORE) * 100))}%;"></div>
           </div>
         </div>
 
