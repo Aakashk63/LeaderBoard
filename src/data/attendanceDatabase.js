@@ -468,7 +468,7 @@ export class AttendanceService {
         },
         { ttlMs: 45000, force, staleWhileRevalidate: true, endpointKey: 'attendance' }
       );
-      if (attArr && attArr.length > 0) {
+      if (Array.isArray(attArr)) {
         this.attendanceRecords = enrichAttendanceRecords(attArr);
       }
 
@@ -482,7 +482,7 @@ export class AttendanceService {
         },
         { ttlMs: 45000, force, staleWhileRevalidate: true, endpointKey: 'attendance' }
       );
-      if (awdArr && awdArr.length > 0) {
+      if (Array.isArray(awdArr)) {
         this.dailyAwards = awdArr;
       }
 
@@ -941,7 +941,7 @@ export class AttendanceService {
 
     // Check if already checked in today with a valid login timestamp
     const existing = this.attendanceRecords.find(
-      r => r.student_id === studentId && r.attendance_date === today
+      r => r.student_id === studentId && (r.attendance_date === today || r.date === today)
     );
     if (existing && existing.login_at && existing.login_location_verified) {
       const earlyPts = existing.early_bird_points !== undefined 
@@ -958,6 +958,7 @@ export class AttendanceService {
 
       return {
         success: false,
+        alreadyCheckedIn: true,
         message: `Already checked in today at ${formatISTTime(existing.login_at)}. Points verified.`,
         record: existing,
         earlyBirdAwarded: Boolean(existing.is_early_bird || earlyPts > 0),
@@ -999,22 +1000,33 @@ export class AttendanceService {
         allToday = dbToday;
       }
     } catch (e) {
-      allToday = this.attendanceRecords.filter(r => r.attendance_date === today);
+      allToday = this.attendanceRecords.filter(r => (r.attendance_date === today || r.date === today));
     }
 
-    // Calculate arrival order: count verified check-ins for today by other students
-    const otherLogins = allToday.filter(r => r.student_id !== studentId && r.login_at);
-    const arrivalOrder = otherLogins.length + 1;
+    const existingRemote = allToday.find(r => r.student_id === studentId);
+    let arrivalOrder = 1;
+    let loginTimeIso = nowIso;
+    if (existingRemote?.login_at) {
+      loginTimeIso = existingRemote.login_at;
+      const sortedLogins = allToday
+        .filter(r => r.login_at)
+        .sort((a, b) => new Date(a.login_at).getTime() - new Date(b.login_at).getTime());
+      const existingIdx = sortedLogins.findIndex(r => r.student_id === studentId);
+      arrivalOrder = existingIdx >= 0 ? existingIdx + 1 : sortedLogins.length + 1;
+    } else {
+      const otherLogins = allToday.filter(r => r.student_id !== studentId && r.login_at);
+      arrivalOrder = otherLogins.length + 1;
+    }
+
     const earlyBirdPoints = Math.max(0, 21 - arrivalOrder);
     const isEarlyBird = earlyBirdPoints > 0;
-    const isNightOwl = isStrictlyAfter6PMIST(nowIso);
+    const isNightOwl = isStrictlyAfter6PMIST(loginTimeIso);
 
     // Save authoritative record to Supabase using only PostgreSQL schema-valid columns
-    const existingRemote = allToday.find(r => r.student_id === studentId);
     const dbPayload = {
       student_id: studentId,
       attendance_date: today,
-      login_at: nowIso,
+      login_at: loginTimeIso,
       login_latitude: coords.latitude || 11.10043,
       login_longitude: coords.longitude || 77.02661,
       login_accuracy_meters: coords.accuracy || 15.0,
@@ -1457,7 +1469,7 @@ export class AttendanceService {
    * Get All Attendance for a Specific Date (for Admin Console)
    */
   getAttendanceForDate(dateStr) {
-    return this.attendanceRecords.filter(r => r.attendance_date === dateStr);
+    return this.attendanceRecords.filter(r => (r.attendance_date === dateStr || r.date === dateStr));
   }
 
   /**
