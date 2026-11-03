@@ -165,7 +165,13 @@ export class PilotStudyRealtimeDatabase {
 
   emit(event, data) {
     if (this.listeners[event]) {
-      this.listeners[event].forEach(cb => cb(data));
+      this.listeners[event].forEach(cb => {
+        try {
+          cb(data);
+        } catch (e) {
+          console.error(`[pilotstudy] Error in '${event}' event listener:`, e);
+        }
+      });
     }
   }
 
@@ -417,13 +423,15 @@ export class PilotStudyRealtimeDatabase {
       if (cat.id === 'early_bird' || cat.id === 'night_owl') {
         val = Number(student.category_scores?.[cat.id]) || 0;
       } else {
-        val = Number(newCategoryScores[cat.id]);
+        val = (newCategoryScores && newCategoryScores[cat.id] !== undefined && !isNaN(Number(newCategoryScores[cat.id])))
+          ? Number(newCategoryScores[cat.id])
+          : (Number(student.category_scores?.[cat.id]) || 0);
       }
       if (isNaN(val) || val < 0) {
-        return { success: false, message: `Invalid score for ${cat.name}. Must be positive number.` };
+        return { success: false, message: `Invalid score for ${cat.name || cat.fullName || cat.id}. Must be positive number.` };
       }
       if (val > cat.maxPoints) {
-        return { success: false, message: `Score for ${cat.name} exceeds max limit of ${cat.maxPoints} pts.` };
+        return { success: false, message: `Score for ${cat.name || cat.fullName || cat.id} exceeds max limit of ${cat.maxPoints} pts.` };
       }
       cleanScores[cat.id] = val;
       total += val;
@@ -460,12 +468,14 @@ export class PilotStudyRealtimeDatabase {
       }
 
       if (!rpcSuccess) {
-        // 1. Update the student record in Supabase
+        // 1. Update the student record in Supabase (updating total, cumulative, and base points together)
         const { data, error } = await supabase
           .from('pilotstudy')
           .update({
             category_scores: cleanScores,
             total_points: total,
+            cumulative_points: total,
+            base_points: total,
             max_points: MAX_SCORE,
             percentage: percentage,
             updated_at: nowIso
@@ -483,6 +493,8 @@ export class PilotStudyRealtimeDatabase {
         // 2. Update local state
         student.category_scores = cleanScores;
         student.total_points = total;
+        student.cumulative_points = total;
+        student.base_points = total;
         student.percentage = percentage;
         student.updated_at = nowIso;
 

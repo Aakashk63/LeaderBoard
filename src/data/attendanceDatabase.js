@@ -390,7 +390,7 @@ export class AttendanceService {
     this.attendanceRecords = [];
     this.dailyAwards = [];
     this.locationVerificationState = LOCATION_STATES.IDLE;
-    this.lastVerificationResult = null;
+    this.lastVerificationResult = {};
     this.lastKnownCoords = null;
     this.verificationExpiresAt = null;
     this.expirationTimer = null;
@@ -456,7 +456,15 @@ export class AttendanceService {
   }
 
   emit(event, data) {
-    if (this.listeners[event]) this.listeners[event].forEach(cb => cb(data));
+    if (this.listeners[event]) {
+      this.listeners[event].forEach(cb => {
+        try {
+          cb(data);
+        } catch (e) {
+          console.error(`[attendance] Error in '${event}' event listener:`, e);
+        }
+      });
+    }
   }
 
   /**
@@ -671,8 +679,8 @@ export class AttendanceService {
 
   setLocationState(newState, details = {}) {
     this.locationVerificationState = newState;
-    this.lastVerificationResult = details;
-    this.emit('locationStateChange', { state: newState, details });
+    this.lastVerificationResult = (details && typeof details === 'object') ? details : {};
+    this.emit('locationStateChange', { state: newState, details: this.lastVerificationResult });
   }
 
   /**
@@ -744,9 +752,9 @@ export class AttendanceService {
       coords
     });
 
-    const distanceToBoundary = coords.distanceToBoundary !== undefined
+    const distanceToBoundary = (coords && coords.distanceToBoundary !== undefined)
       ? coords.distanceToBoundary
-      : (coords.insideCampus ? 0 : coords.distance);
+      : (coords && coords.insideCampus ? 0 : (coords && coords.distance ? coords.distance : 0));
     const accuracy = coords.accuracy;
     const poly = this.campusSettings.boundary_polygon || DEFAULT_CAMPUS_POLYGON;
     const inside = coords.insideCampus !== undefined

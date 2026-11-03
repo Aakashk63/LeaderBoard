@@ -1157,6 +1157,9 @@ function handleSimulateCampusLocation() {
  * Updates both the standalone sign-in location indicators and dashboard radar
  */
 function updateLocationStateUI(state, details = {}) {
+  if (!details || typeof details !== 'object') {
+    details = {};
+  }
   let title = 'Waiting for Location';
   let accText = 'GPS Idle';
   let guidanceText = 'Click <strong>"Check My Location"</strong> below to acquire fresh browser GPS readings and verify you are within SNS College of Technology boundary before confirming attendance.';
@@ -1189,8 +1192,8 @@ function updateLocationStateUI(state, details = {}) {
     case LOCATION_STATES.VERIFIED:
       stateClass = 'state-verified';
       title = 'Location Verified';
-      accText = `${Math.round(details.accuracy || 12)}m Accuracy`;
-      const zoneLabel = details.nearestZone?.name ? ` (${details.nearestZone.name})` : '';
+      accText = `${Math.round(details?.accuracy || 12)}m Accuracy`;
+      const zoneLabel = details?.nearestZone?.name ? ` (${details.nearestZone.name})` : '';
       guidanceText = `Success! Your GPS position is verified inside the approved SNS College of Technology campus premises${zoneLabel}. You are eligible to complete check-in.`;
       isVerified = true;
       break;
@@ -1222,16 +1225,16 @@ function updateLocationStateUI(state, details = {}) {
     case LOCATION_STATES.INACCURATE_LOCATION:
       stateClass = 'state-low-accuracy';
       title = 'GPS Accuracy Too Low';
-      accText = `${Math.round(details.accuracy || 0)}m (Max: ${attendanceService.campusSettings.max_accuracy_meters}m)`;
-      guidanceText = `Reported GPS accuracy (${Math.round(details.accuracy || 0)}m) exceeds the permitted campus threshold (${attendanceService.campusSettings.max_accuracy_meters}m). Please enable High Accuracy mode and click Retry Location.`;
+      accText = `${Math.round(details?.accuracy || 0)}m (Max: ${attendanceService.campusSettings.max_accuracy_meters}m)`;
+      guidanceText = `Reported GPS accuracy (${Math.round(details?.accuracy || 0)}m) exceeds the permitted campus threshold (${attendanceService.campusSettings.max_accuracy_meters}m). Please enable High Accuracy mode and click Retry Location.`;
       showRetry = true;
       break;
 
     case LOCATION_STATES.OUTSIDE_CAMPUS:
       stateClass = 'state-outside';
       title = 'Outside Campus Boundary';
-      accText = `${Math.round(details.accuracy || 0)}m Accuracy`;
-      const boundaryDist = Math.round(details.distanceToBoundary !== undefined ? details.distanceToBoundary : (details.distance || 0));
+      accText = `${Math.round(details?.accuracy || 0)}m Accuracy`;
+      const boundaryDist = Math.round(details?.distanceToBoundary !== undefined ? details.distanceToBoundary : (details?.distance || 0));
       guidanceText = `Location rejected: You are ${boundaryDist}m away from the approved SNS College of Technology boundary (including SNS iHub). You must be physically inside campus premises to mark attendance.`;
       showRetry = true;
       break;
@@ -1240,7 +1243,7 @@ function updateLocationStateUI(state, details = {}) {
       stateClass = 'state-failed';
       title = 'Location Verification Failed';
       accText = 'Verification Failed';
-      guidanceText = `Unable to verify position: ${details.message || 'GPS verification error'}. Please check your connection and click Retry Location.`;
+      guidanceText = `Unable to verify position: ${details?.message || 'GPS verification error'}. Please check your connection and click Retry Location.`;
       showRetry = true;
       break;
 
@@ -1269,11 +1272,11 @@ function updateLocationStateUI(state, details = {}) {
       elements.textSignInLiveDistance.textContent = 'Permission denied';
       elements.textSignInLiveDistance.style.color = '#f87171';
     } else if (isVerified) {
-      const zoneName = details.nearestZone?.name || 'SNS Campus';
+      const zoneName = details?.nearestZone?.name || 'SNS Campus';
       elements.textSignInLiveDistance.textContent = `Inside Boundary (${zoneName})`;
       elements.textSignInLiveDistance.style.color = 'var(--accent-lime)';
-    } else if (details.distance !== undefined) {
-      const boundaryDist = Math.round(details.distanceToBoundary !== undefined ? details.distanceToBoundary : details.distance);
+    } else if (details?.distance !== undefined) {
+      const boundaryDist = Math.round(details?.distanceToBoundary !== undefined ? details.distanceToBoundary : (details.distance || 0));
       elements.textSignInLiveDistance.textContent = `${boundaryDist}m Outside Boundary`;
       elements.textSignInLiveDistance.style.color = '#f87171';
     } else {
@@ -1285,7 +1288,7 @@ function updateLocationStateUI(state, details = {}) {
   if (elements.textSignInLiveAccuracy) {
     if (state === LOCATION_STATES.LOCATION_DISABLED || state === LOCATION_STATES.PERMISSION_DENIED) {
       elements.textSignInLiveAccuracy.textContent = 'Unavailable';
-    } else if (details.accuracy !== undefined) {
+    } else if (details?.accuracy !== undefined) {
       elements.textSignInLiveAccuracy.textContent = `${Math.round(details.accuracy)}m (${details.accuracy <= attendanceService.campusSettings.max_accuracy_meters ? 'Pass' : 'Too High'})`;
     } else {
       elements.textSignInLiveAccuracy.textContent = '-- (< 100m required)';
@@ -1361,7 +1364,9 @@ function renderAttendanceDashboard() {
       ? `0 meters (Inside Campus Boundary • ${loc.nearestZone?.name || 'SNS iHub'})`
       : `${boundaryDist} meters (Outside Campus Boundary)`;
     elements.attLiveDistanceMeters.style.color = isInside ? 'var(--accent-lime)' : '#f87171';
-    elements.attLiveAccuracyMeters.textContent = `${Math.round(loc.accuracy)} meters (${loc.accuracy <= settings.max_accuracy_meters ? 'Acceptable' : 'Too High'})`;
+    if (elements.attLiveAccuracyMeters) {
+      elements.attLiveAccuracyMeters.textContent = `${Math.round(loc.accuracy || 0)} meters (${(loc.accuracy || 0) <= settings.max_accuracy_meters ? 'Acceptable' : 'Too High'})`;
+    }
   }
 
   // 4. Timestamps
