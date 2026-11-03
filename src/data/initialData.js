@@ -21,7 +21,8 @@ export const INITIAL_STUDENTS = [
   { id: 'std-15', name: 'Kabilesh' },
   { id: 'std-16', name: 'Banusri' },
   { id: 'std-17', name: 'Dharsiga' },
-  { id: 'std-18', name: 'Aishwarya' }
+  { id: 'std-18', name: 'Aishwarya' },
+  { id: 'std-19', name: 'John Wick' }
 ];
 
 export const SCORING_CATEGORIES = [
@@ -36,21 +37,21 @@ export const SCORING_CATEGORIES = [
   },
   {
     id: 'night_owl',
-    shortName: 'Late Night Owl',
-    fullName: 'Late Night Owl',
-    maxPoints: 10,
+    shortName: 'Checkout Reward',
+    fullName: 'Checkout Reward (Night Owl)',
+    maxPoints: 20,
     icon: '🦉',
     color: '#818cf8',
-    description: 'Award up to 10 points for work completed after 6 PM.'
+    description: 'Awarded on logout order: 1st logout gets 1 pt, each subsequent gets 1 pt more up to 20 pts (2nd: 2, 3rd: 3, ..., last: 20).'
   },
   {
     id: 'leetcode',
     shortName: 'LeetCode',
     fullName: 'LeetCode Champion',
-    maxPoints: 5,
+    maxPoints: 10,
     icon: '💻',
     color: '#f59e0b',
-    description: 'Award up to 5 points for coding practice and problem-solving performance.'
+    description: 'Baseline score for all students (10 pts).'
   },
   {
     id: 'empathizer',

@@ -27,7 +27,8 @@ export const STUDENT_ACCOUNTS = [
   { student_id: 'std-15', username: 'kabilesh', email: 'kabilesh.v.mct.2026@snsct.org', student_name: 'Kabilesh', defaultPassword: 'Demo@1234' },
   { student_id: 'std-16', username: 'banusri', email: 'banusri.r.cse.2026@snsct.org', student_name: 'Banusri', defaultPassword: 'Demo@1234' },
   { student_id: 'std-17', username: 'dharsiga', email: 'dharsiga.s.cse.2026@snsct.org', student_name: 'Dharsiga', defaultPassword: 'Demo@1234' },
-  { student_id: 'std-18', username: 'aishwarya', email: 'aishwarya.m.cse.2026@snsct.org', student_name: 'Aishwarya', defaultPassword: 'Demo@1234' }
+  { student_id: 'std-18', username: 'aishwarya', email: 'aishwarya.m.cse.2026@snsct.org', student_name: 'Aishwarya', defaultPassword: 'Demo@1234' },
+  { student_id: 'std-19', username: 'johnwick', email: 'johnwick@gmail.com', student_name: 'John Wick', defaultPassword: 'Demo@1234' }
 ];
 
 // Pre-registered Mentor / Trainer Accounts Directory

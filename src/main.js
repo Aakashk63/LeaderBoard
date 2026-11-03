@@ -981,10 +981,8 @@ async function handleStudentCheckOutAndLogout() {
 
     let notice = 'Logged out successfully.';
     if (checkOutResult && checkOutResult.success) {
-      notice = `Logged out at ${formatISTTime(checkOutResult.record?.logout_at)}. Attendance status completed.`;
-      if (checkOutResult.nightOwlAwarded) {
-        notice += ' Late Night Owl award (+10 pts) awarded!';
-      }
+      const orderNotice = checkOutResult.logoutOrder ? ` (Logout #${checkOutResult.logoutOrder}: +${checkOutResult.logoutPoints} pts)` : '';
+      notice = `Logged out at ${formatISTTime(checkOutResult.record?.logout_at)}.${orderNotice} Attendance status completed.`;
     }
 
     await authService.signOut();
@@ -1472,7 +1470,7 @@ function renderAttendanceDashboard() {
         const avatarBg = student?.avatarBg || '#334155';
 
         const earlyPts = rec.early_bird_points !== undefined ? rec.early_bird_points : (rec.arrival_order ? Math.max(0, 21 - rec.arrival_order) : (rec.is_early_bird ? 10 : 0));
-        const nightPts = rec.night_owl_points !== undefined ? rec.night_owl_points : (rec.is_night_owl ? 10 : 0);
+        const logoutPts = rec.logout_points !== undefined ? rec.logout_points : (rec.night_owl_points !== undefined ? rec.night_owl_points : (rec.is_night_owl ? 1 : 0));
 
         let arrivalText = '--';
         if (rec.arrival_order) {
@@ -1482,8 +1480,9 @@ function renderAttendanceDashboard() {
           arrivalText = `<strong style="color: var(--accent-lime);">+${earlyPts} pts</strong>`;
         }
 
-        if (nightPts > 0) {
-          arrivalText += ` <span class="award-badge-pill night">+${nightPts} Night Owl</span>`;
+        if (logoutPts > 0) {
+          const orderTxt = rec.logout_order ? `#${rec.logout_order} ` : '';
+          arrivalText += ` <span class="award-badge-pill night">Logout ${orderTxt}(+${logoutPts} pts)</span>`;
         }
 
         return `
@@ -1546,8 +1545,10 @@ function renderAttendanceDashboard() {
         arrivalText = `<strong style="color: var(--accent-lime);">+${rec.early_bird_points} pts</strong>`;
       }
 
-      if (rec?.night_owl_points) {
-        arrivalText += ` <span class="award-badge-pill night">+${rec.night_owl_points} Night Owl</span>`;
+      const logoutPts = rec?.logout_points !== undefined ? rec.logout_points : (rec?.night_owl_points !== undefined ? rec.night_owl_points : (rec?.is_night_owl ? 1 : 0));
+      if (logoutPts > 0) {
+        const orderTxt = rec?.logout_order ? `#${rec.logout_order} ` : '';
+        arrivalText += ` <span class="award-badge-pill night">Logout ${orderTxt}(+${logoutPts} pts)</span>`;
       }
 
       const locationText = isCheckedIn

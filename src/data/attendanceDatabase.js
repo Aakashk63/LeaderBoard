@@ -48,35 +48,55 @@ export const DEFAULT_CAMPUS_SETTINGS = {
 export const TIMEZONE = 'Asia/Kolkata';
 
 /**
- * Deterministically compute arrival order and early bird points based on login_at
+ * Deterministically compute arrival order, early bird points, logout order, and checkout points
  */
 export function enrichAttendanceRecords(records) {
   if (!Array.isArray(records)) return [];
   const byDate = {};
   records.forEach(r => {
-    const d = r.attendance_date;
+    const d = r.attendance_date || r.date;
     if (!byDate[d]) byDate[d] = [];
     byDate[d].push(r);
   });
 
   Object.values(byDate).forEach(dayList => {
+    // 1. Arrival Order & Login Points (1st gets 20 pts, 2nd gets 19, ..., -1 pt each)
     const verifiedLogins = dayList
-      .filter(r => r.login_at && r.login_location_verified)
+      .filter(r => r.login_at && (r.login_location_verified || r.login_at))
       .sort((a, b) => new Date(a.login_at).getTime() - new Date(b.login_at).getTime());
 
     verifiedLogins.forEach((rec, idx) => {
       rec.arrival_order = idx + 1;
       rec.early_bird_points = Math.max(0, 21 - (idx + 1));
       rec.is_early_bird = rec.early_bird_points > 0;
-      rec.night_owl_points = (rec.is_night_owl || isStrictlyAfter6PMIST(rec.logout_at || rec.login_at)) ? 10 : 0;
     });
 
     dayList.forEach(rec => {
-      if (!rec.login_location_verified || !rec.login_at) {
+      if (!rec.login_at) {
         rec.arrival_order = null;
         rec.early_bird_points = 0;
         rec.is_early_bird = false;
+      }
+    });
+
+    // 2. Checkout Order & Logout Points (1st gets 1 pt, 2nd gets 2, ..., last gets up to 20 pts)
+    const verifiedLogouts = dayList
+      .filter(r => r.logout_at && (r.logout_location_verified || r.status === 'completed'))
+      .sort((a, b) => new Date(a.logout_at).getTime() - new Date(b.logout_at).getTime());
+
+    verifiedLogouts.forEach((rec, idx) => {
+      rec.logout_order = idx + 1;
+      rec.logout_points = Math.min(20, idx + 1);
+      rec.night_owl_points = rec.logout_points;
+      rec.is_night_owl = true;
+    });
+
+    dayList.forEach(rec => {
+      if (!rec.logout_at) {
+        rec.logout_order = null;
+        rec.logout_points = 0;
         rec.night_owl_points = 0;
+        rec.is_night_owl = false;
       }
     });
   });
@@ -1203,7 +1223,26 @@ export class AttendanceService {
     this.lastKnownCoords = coords;
 
     const nowIso = new Date().toISOString();
-    const isNightEligible = isStrictlyAfter6PMIST(nowIso);
+
+    // Fetch fresh authoritative records for today directly from Supabase to prevent multi-device race conditions
+    let allToday = [];
+    try {
+      const { data: dbToday } = await supabase
+        .from('student_attendance')
+        .select('*')
+        .eq('attendance_date', today);
+      if (dbToday && Array.isArray(dbToday)) {
+        allToday = dbToday;
+      }
+    } catch (e) {
+      allToday = this.attendanceRecords.filter(r => (r.attendance_date === today || r.date === today));
+    }
+
+    // Calculate logout order: count other verified checkouts for today
+    const otherLogouts = allToday.filter(r => r.student_id !== studentId && r.logout_at);
+    const logoutOrder = otherLogouts.length + 1;
+    // 1st person to logout gets 1 mark, next gets 2 marks, ..., up to 20 marks
+    const logoutPoints = Math.min(20, Math.max(1, logoutOrder));
 
     record.logout_at = nowIso;
     record.logout_latitude = coords.latitude;
@@ -1211,10 +1250,10 @@ export class AttendanceService {
     record.logout_accuracy_meters = coords.accuracy;
     record.logout_location_verified = true;
     record.status = 'completed';
-    if (isNightEligible) {
-      record.is_night_owl = true;
-      record.night_owl_points = 10;
-    }
+    record.is_night_owl = true;
+    record.logout_order = logoutOrder;
+    record.logout_points = logoutPoints;
+    record.night_owl_points = logoutPoints;
 
     // Persist to Supabase with PostgreSQL schema-valid columns, strictly preserving check-in data
     try {
@@ -1233,7 +1272,7 @@ export class AttendanceService {
         logout_location_verified: true,
         status: 'completed',
         is_early_bird: record.is_early_bird !== undefined ? record.is_early_bird : true,
-        is_night_owl: record.is_night_owl || isNightEligible,
+        is_night_owl: true,
         updated_at: nowIso
       };
       await supabase
@@ -1243,19 +1282,17 @@ export class AttendanceService {
       console.warn('[attendance] Supabase checkout upsert warning:', err);
     }
 
-    // Recalculate Late Night Owl Award for Today
+    // Recalculate Daily Awards for Today
     this.recalculateDailyAwards(today);
 
-    // Auto-fill Late Night Owl points if eligible, preserving early bird points
-    if (isNightEligible) {
-      const existingEarly = record.early_bird_points || 0;
-      await this.syncStudentPointsForAwards(studentId, {
-        isEarlyBird: existingEarly > 0,
-        earlyBirdPoints: existingEarly,
-        isNightOwl: true,
-        nightOwlPoints: 10
-      });
-    }
+    // Auto-fill logout order points in pilotstudy table, preserving early bird points
+    const existingEarly = record.early_bird_points || 0;
+    await this.syncStudentPointsForAwards(studentId, {
+      isEarlyBird: existingEarly > 0,
+      earlyBirdPoints: existingEarly,
+      isNightOwl: true,
+      nightOwlPoints: logoutPoints
+    });
 
     this.saveToCache();
 
@@ -1271,11 +1308,11 @@ export class AttendanceService {
 
     return {
       success: true,
-      message: `Verified check-out at SNS College of Technology at ${formatISTTime(nowIso)}.${
-        isNightEligible ? ' Eligible & Awarded Late Night Owl (+10 pts)!' : ' (Before 6:00 PM IST — not eligible for Night Owl).'
-      }`,
+      message: `Verified check-out at SNS College of Technology at ${formatISTTime(nowIso)}. Logout Order #${logoutOrder}: +${logoutPoints} pt${logoutPoints === 1 ? '' : 's'} awarded!`,
       record,
-      nightOwlAwarded: isNightEligible
+      logoutOrder,
+      logoutPoints,
+      nightOwlAwarded: true
     };
   }
 

@@ -243,20 +243,24 @@ await runCheckInTest();
 console.log('');
 
 // -----------------------------------------------------------------------------
-// Test 10: Strict 18-Student Cohort Directory & Password (Demo@1234)
+// Test 10: Strict 19-Student Cohort Directory & Password (Demo@1234)
 // -----------------------------------------------------------------------------
-console.log('--- Test 10: Strict 18-Student Cohort Directory & Password (Demo@1234) ---');
+console.log('--- Test 10: Strict 19-Student Cohort Directory & Password (Demo@1234) ---');
 
-assert(STUDENT_ACCOUNTS.length === 18, 'STUDENT_ACCOUNTS contains EXACTLY 18 students', `Count: ${STUDENT_ACCOUNTS.length}`);
+assert(STUDENT_ACCOUNTS.length === 19, 'STUDENT_ACCOUNTS contains EXACTLY 19 students (including John Wick)', `Count: ${STUDENT_ACCOUNTS.length}`);
 
-// Verify all 18 have Demo@1234 as password
+// Verify all 19 have Demo@1234 as password
 const allHaveDemoPassword = STUDENT_ACCOUNTS.every(acc => acc.defaultPassword === 'Demo@1234');
-assert(allHaveDemoPassword, 'All 18 students have the required password: Demo@1234');
+assert(allHaveDemoPassword, 'All 19 students have the required password: Demo@1234');
 
-// Verify all 18 student IDs are std-1 to std-18
-const expectedIds = Array.from({ length: 18 }, (_, i) => `std-${i + 1}`);
+// Verify all 19 student IDs are std-1 to std-19
+const expectedIds = Array.from({ length: 19 }, (_, i) => `std-${i + 1}`);
 const idsMatch = STUDENT_ACCOUNTS.every((acc, i) => acc.student_id === expectedIds[i]);
-assert(idsMatch, 'Student IDs strictly map sequentially to std-1 through std-18');
+assert(idsMatch, 'Student IDs strictly map sequentially to std-1 through std-19');
+
+// Verify John Wick account specifically
+const johnWickAcc = STUDENT_ACCOUNTS.find(a => a.student_id === 'std-19');
+assert(johnWickAcc && johnWickAcc.email === 'johnwick@gmail.com' && johnWickAcc.defaultPassword === 'Demo@1234', 'John Wick student account is enrolled with email johnwick@gmail.com and password Demo@1234');
 
 // Verify previous test accounts (demo/dummy) are strictly eliminated
 const dummyExists = STUDENT_ACCOUNTS.some(a => a.student_id === 'std-dummy' || a.email === 'dummy@gmail.com');
@@ -363,7 +367,20 @@ const aishwaryaLogin = await authService.signIn({
 });
 assert(aishwaryaLogin.success === true, 'Successfully authenticates Aishwarya (std-18)');
 
-// 8. Attempt login with an unlisted student name (must be rejected)
+// 8. Test Student 19: John Wick authentication
+const johnWickLogin = await authService.signIn({
+  fullName: 'John Wick',
+  identifier: 'johnwick@gmail.com',
+  password: 'Demo@1234',
+  role: 'student',
+  isGpsVerified: true,
+  deviceId: 'device-test-johnwick',
+  hardwareHash: 'hw-hash-johnwick'
+});
+assert(johnWickLogin.success === true, 'Successfully authenticates John Wick (std-19) with johnwick@gmail.com');
+assert(johnWickLogin.user?.student_id === 'std-19', 'John Wick authenticated student_id is std-19');
+
+// 9. Attempt login with an unlisted student name (must be rejected)
 const unlistedLogin = await authService.signIn({
   fullName: 'R.Reshma',
   identifier: 'reshma@pilotstudy.snsct.edu.in',

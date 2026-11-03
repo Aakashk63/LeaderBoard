@@ -43,20 +43,20 @@ export const ONE_TIME_CATEGORIES = [
   { id: 'team_lead', name: 'Best Team Lead', maxPoints: 25, defaultPts: 22 }
 ];
 
-// The 2 Daily Attendance Categories (10 pts per day each)
+// The 2 Daily Attendance Categories (Max 20 pts each per day)
 export const DAILY_ATTENDANCE_CATEGORIES = [
-  { id: 'early_bird', name: 'Early Bird', maxPoints: 10, pointsPerDay: 10 },
-  { id: 'night_owl', name: 'Late Night Owl', maxPoints: 10, pointsPerDay: 10 }
+  { id: 'early_bird', name: 'Early Bird (Login Order)', maxPoints: 20, pointsPerDay: 20 },
+  { id: 'night_owl', name: 'Checkout Reward (Logout Order)', maxPoints: 20, pointsPerDay: 20 }
 ];
 
 // All 11 Scoring Categories (with fixed bounds)
 export const SCORING_CATEGORIES = [
-  { id: 'early_bird', name: 'Early Bird', maxPoints: 10, defaultPts: 10 },
-  { id: 'night_owl', name: 'Late Night Owl', maxPoints: 10, defaultPts: 8 },
+  { id: 'early_bird', name: 'Early Bird (Login Order)', maxPoints: 20, defaultPts: 0 },
+  { id: 'night_owl', name: 'Checkout Reward (Logout Order)', maxPoints: 20, defaultPts: 0 },
   ...ONE_TIME_CATEGORIES
 ];
 
-// Color gradients for circular avatars (Enrolled 18 students)
+// Color gradients for circular avatars (Enrolled cohort students)
 export const AVATAR_PALETTES = {
   'std-1': 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)',
   'std-2': 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)',
@@ -75,7 +75,8 @@ export const AVATAR_PALETTES = {
   'std-15': 'linear-gradient(135deg, #4f46e5 0%, #312e81 100%)',
   'std-16': 'linear-gradient(135deg, #ec4899 0%, #9d174d 100%)',
   'std-17': 'linear-gradient(135deg, #0284c7 0%, #075985 100%)',
-  'std-18': 'linear-gradient(135deg, #9333ea 0%, #581c87 100%)'
+  'std-18': 'linear-gradient(135deg, #9333ea 0%, #581c87 100%)',
+  'std-19': 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
 };
 
 const LOCAL_STORAGE_CACHE_KEY = 'pilotstudy_cache_v3';
