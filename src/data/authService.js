@@ -2,9 +2,11 @@
  * Student Authentication Service (Supabase Auth Integration)
  * Links individual student credentials directly to the authoritative pilotstudy table
  * Enforces strict login for only the 18 officially enrolled cohort students.
+ * Enforces strict One Device – One Account Login Restriction at the backend/database level.
  */
 
 import { supabase } from './pilotstudyDatabase.js';
+import { deviceService, ONE_ACCOUNT_PER_DEVICE_ERROR } from './deviceService.js';
 
 // Pre-registered Student Accounts Directory (Strictly Enrolled 18 Students)
 export const STUDENT_ACCOUNTS = [
@@ -134,6 +136,10 @@ export class AuthService {
     this.emit('authChange', this.currentStudent);
   }
 
+  /**
+   * Clears the current user's active session.
+   * NOTE: As strictly mandated, logging out DOES NOT remove the persistent device-to-account binding.
+   */
   clearSession() {
     this.currentStudent = null;
     this.supabaseUser = null;
@@ -185,9 +191,10 @@ export class AuthService {
   }
 
   /**
-   * Authenticate user with role-based verification, full name matching, and Supabase Auth
+   * Authenticate user with role-based verification, full name matching,
+   * ONE DEVICE – ONE ACCOUNT enforcement, and Supabase Auth.
    */
-  async signIn({ fullName, identifier, password, role = 'student', isGpsVerified = false }) {
+  async signIn({ fullName, identifier, password, role = 'student', isGpsVerified = false, deviceId = null, hardwareHash = null }) {
     if (!identifier || !password) {
       return { success: false, message: 'Please provide both email/username and password.' };
     }
@@ -224,9 +231,26 @@ export class AuthService {
           message: 'Mandatory campus GPS verification required before student sign-in. Click "Check My Location" first.'
         };
       }
+
+      // 3. One Device – One Account Login Restriction (Backend & Cloud DB Validation Gate)
+      const deviceCheck = await deviceService.validateDeviceForLogin({
+        studentId: account.student_id,
+        email: account.email,
+        deviceId,
+        hardwareHash,
+        role: account.role
+      });
+
+      if (!deviceCheck.allowed) {
+        return {
+          success: false,
+          code: 'DEVICE_ACCOUNT_RESTRICTION',
+          message: deviceCheck.message || ONE_ACCOUNT_PER_DEVICE_ERROR
+        };
+      }
     }
 
-    // Instant Credential Verification (< 5ms response, guaranteed < 3 seconds)
+    // 4. Instant Credential Verification (< 5ms response, guaranteed < 3 seconds)
     const isPasswordValid = password === account.defaultPassword ||
       password === 'Demo@1234' ||
       (account.role === 'mentor' && (
@@ -236,6 +260,17 @@ export class AuthService {
       ));
 
     if (isPasswordValid) {
+      // 5. Securely bind device to this student account in database
+      if (account.role === 'student') {
+        await deviceService.bindDeviceToAccount({
+          studentId: account.student_id,
+          studentName: account.student_name,
+          email: account.email,
+          deviceId,
+          hardwareHash
+        });
+      }
+
       const authenticatedPayload = {
         student_id: account.student_id || account.mentor_id,
         student_name: account.student_name,
@@ -279,6 +314,17 @@ export class AuthService {
       const res = await Promise.race([authPromise, timeoutPromise]);
       if (res?.data?.user) {
         const authUser = res.data.user;
+
+        if (account.role === 'student') {
+          await deviceService.bindDeviceToAccount({
+            studentId: account.student_id,
+            studentName: account.student_name,
+            email: account.email,
+            deviceId,
+            hardwareHash
+          });
+        }
+
         const authenticatedPayload = {
           student_id: account.student_id || account.mentor_id,
           student_name: account.student_name,
@@ -310,8 +356,22 @@ export class AuthService {
   }
 
   /**
+   * Release device association for a student (Authorized Administrator Only)
+   */
+  async adminResetDeviceBinding(targetStudentId, targetDeviceId) {
+    if (!this.isMentorOrAdmin()) {
+      return { success: false, message: 'Permission Denied: Only administrators can reset device associations.' };
+    }
+    return await deviceService.adminResetDeviceBinding({
+      studentId: targetStudentId,
+      deviceId: targetDeviceId,
+      requestingRole: this.getUserRole()
+    });
+  }
+
+  /**
    * Sign out current user
-   * Guarantees session is cleared promptly even if Supabase network call hangs
+   * Note: Logging out DOES NOT remove the persistent device-to-account association.
    */
   async signOut() {
     try {

@@ -22,6 +22,7 @@ import {
   findNearestCampusZone
 } from './data/attendanceDatabase.js';
 import { authService, STUDENT_ACCOUNTS, MENTOR_ACCOUNTS } from './data/authService.js';
+import { deviceService } from './data/deviceService.js';
 import { appQueryCache } from './data/cacheEngine.js';
 // Application State
 let currentTheme = 'dark';
@@ -105,6 +106,11 @@ const elements = {
   attSheetMetricDate: document.getElementById('attSheetMetricDate'),
   allStudentsAttendanceTableBody: document.getElementById('allStudentsAttendanceTableBody'),
   geofenceAdminDrawer: document.getElementById('geofenceAdminDrawer'),
+  deviceAdminDrawer: document.getElementById('deviceAdminDrawer'),
+  headerDeviceDrawerToggle: document.getElementById('headerDeviceDrawerToggle'),
+  deviceAdminBody: document.getElementById('deviceAdminBody'),
+  btnRefreshDeviceBindings: document.getElementById('btnRefreshDeviceBindings'),
+  deviceBindingsListContainer: document.getElementById('deviceBindingsListContainer'),
   headerGeofenceDrawerToggle: document.getElementById('headerGeofenceDrawerToggle'),
   bannerEarlyBirdPointsChip: document.getElementById('bannerEarlyBirdPointsChip'),
 
@@ -772,10 +778,12 @@ function syncAuthStateView() {
     if (elements.tabNavAttendanceLabel) elements.tabNavAttendanceLabel.textContent = 'Attendance (Sheet & Mentor)';
     if (elements.btnDownloadAttendanceCsv) elements.btnDownloadAttendanceCsv.style.display = 'inline-flex';
     if (elements.geofenceAdminDrawer) elements.geofenceAdminDrawer.style.display = 'block';
+    if (elements.deviceAdminDrawer) elements.deviceAdminDrawer.style.display = 'block';
   } else {
     if (elements.tabNavAttendanceLabel) elements.tabNavAttendanceLabel.textContent = 'Attendance';
     if (elements.btnDownloadAttendanceCsv) elements.btnDownloadAttendanceCsv.style.display = 'none';
     if (elements.geofenceAdminDrawer) elements.geofenceAdminDrawer.style.display = 'none';
+    if (elements.deviceAdminDrawer) elements.deviceAdminDrawer.style.display = 'none';
   }
 }
 
@@ -822,12 +830,16 @@ async function handleStandaloneSignIn(e) {
   if (elements.btnStandaloneSignInSubmit) elements.btnStandaloneSignInSubmit.disabled = true;
   showStandaloneAuthFeedback('Authenticating credentials...', 'loading');
 
+    const deviceIdentity = await deviceService.getDeviceIdentity();
+
   const result = await authService.signIn({
     fullName,
     identifier,
     password,
     role: effectiveRole,
-    isGpsVerified
+    isGpsVerified,
+    deviceId: deviceIdentity.deviceId,
+    hardwareHash: deviceIdentity.hardwareHash
   });
 
   if (!result.success) {
@@ -841,10 +853,11 @@ async function handleStandaloneSignIn(e) {
     showStandaloneAuthFeedback('Credentials verified! Recording authoritative check-in at SNS College of Technology...', 'loading');
     const checkInResult = await attendanceService.performCheckIn(result.user.student_id);
 
+    const earlyPts = checkInResult.earlyBirdPoints || (checkInResult.earlyBirdAwarded ? 20 : 0);
     if (checkInResult.earlyBirdAwarded && checkInResult.nightOwlAwarded) {
-      showStandaloneAuthFeedback(`Attendance Marked! Awarded Early Bird (+10 pts) and Late Night Owl (+10 pts) automatically!`, 'success');
+      showStandaloneAuthFeedback(`Attendance Marked! Awarded Early Bird (+${earlyPts} pts) and Late Night Owl (+10 pts) automatically!`, 'success');
     } else if (checkInResult.earlyBirdAwarded) {
-      showStandaloneAuthFeedback(`Attendance Marked! Early Bird Award (+10 pts) automatically auto-filled!`, 'success');
+      showStandaloneAuthFeedback(`Attendance Marked! Early Bird Award (+${earlyPts} pts) automatically auto-filled!`, 'success');
     } else if (checkInResult.nightOwlAwarded) {
       showStandaloneAuthFeedback(`Attendance Marked! Late Night Owl Award (+10 pts) automatically auto-filled!`, 'success');
     } else {
@@ -1344,6 +1357,10 @@ function renderAttendanceDashboard() {
   }
   if (elements.geofenceAdminDrawer) {
     elements.geofenceAdminDrawer.style.display = isMentor ? 'block' : 'none';
+    if (elements.deviceAdminDrawer) {
+      elements.deviceAdminDrawer.style.display = isMentor ? 'block' : 'none';
+      if (isMentor) renderDeviceAdminDrawer();
+    }
   }
   if (elements.btnAdminRecalculate) {
     elements.btnAdminRecalculate.style.display = isMentor ? 'inline-flex' : 'none';
@@ -1526,6 +1543,58 @@ function renderAttendanceDashboard() {
 /**
  * Backward compatibility stub
  */
+
+/**
+ * Render Registered Device Associations in Mentor Admin View
+ */
+async function renderDeviceAdminDrawer() {
+  if (!elements.deviceBindingsListContainer) return;
+  const bindings = await deviceService.getAllRegisteredDevices();
+
+  if (!bindings || bindings.length === 0) {
+    elements.deviceBindingsListContainer.innerHTML = `
+      <div style="color: var(--text-muted); font-size: 0.8rem; padding: 0.85rem; text-align: center; background: var(--bg-surface); border: 1px dashed var(--border-color); border-radius: 8px;">
+        No devices currently registered. Once a student logs in, their device is bound to their account here.
+      </div>
+    `;
+    return;
+  }
+
+  elements.deviceBindingsListContainer.innerHTML = bindings.map(b => {
+    return `
+      <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem 1rem; flex-wrap: wrap; gap: 0.75rem;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-weight: 800; color: var(--text-primary); font-size: 0.9rem;">${escapeHtml(b.student_name)}</span>
+            <span style="font-size: 0.72rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 10px; padding: 0.1rem 0.45rem; font-weight: 700;">${b.student_id}</span>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">
+            <span>${escapeHtml(b.email)}</span> • 
+            <span>Device ID: <code style="font-family: monospace; color: var(--accent-lime);">${b.device_id ? b.device_id.slice(0, 16) : ''}...</code></span> • 
+            <span>Bound: ${b.bound_at ? new Date(b.bound_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'Recently'}</span>
+          </div>
+        </div>
+        <button type="button" class="admin-btn btn-release-device" data-std-id="${b.student_id}" data-dev-id="${b.device_id}" style="color: #f87171; border-color: rgba(239, 68, 68, 0.4); font-size: 0.75rem; padding: 0.3rem 0.65rem;">
+          Release Device
+        </button>
+      </div>
+    `;
+  }).join('');
+
+  elements.deviceBindingsListContainer.querySelectorAll('.btn-release-device').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const stdId = btn.getAttribute('data-std-id');
+      const devId = btn.getAttribute('data-dev-id');
+      if (confirm(`Release device binding for student ${stdId}? This will allow the student to register a new device.`)) {
+        btn.disabled = true;
+        btn.textContent = 'Releasing...';
+        await authService.resetDeviceAssociation(stdId, devId);
+        await renderDeviceAdminDrawer();
+      }
+    });
+  });
+}
+
 function renderAdminAttendanceDashboard() {
   renderAttendanceDashboard();
 }
@@ -1850,6 +1919,27 @@ function setupEventListeners() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+    });
+  }
+
+  
+  if (elements.headerDeviceDrawerToggle) {
+    elements.headerDeviceDrawerToggle.addEventListener('click', () => {
+      if (elements.deviceAdminBody) {
+        const isHidden = elements.deviceAdminBody.style.display === 'none';
+        elements.deviceAdminBody.style.display = isHidden ? 'block' : 'none';
+        if (isHidden) renderDeviceAdminDrawer();
+      }
+    });
+  }
+
+  if (elements.btnRefreshDeviceBindings) {
+    elements.btnRefreshDeviceBindings.addEventListener('click', async () => {
+      elements.btnRefreshDeviceBindings.disabled = true;
+      elements.btnRefreshDeviceBindings.textContent = 'Refreshing...';
+      await renderDeviceAdminDrawer();
+      elements.btnRefreshDeviceBindings.disabled = false;
+      elements.btnRefreshDeviceBindings.textContent = 'Refresh Device Registry';
     });
   }
 

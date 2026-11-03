@@ -252,16 +252,37 @@ export class PilotStudyRealtimeDatabase {
     });
 
     // Attendance summary (cyclic safe)
-    let att = { wonTodayEarly: false, wonTodayNight: false, todayEarlyPoints: 0, todayRecord: null };
+    let earlyBirdPts = Number(categoryScores.early_bird) || 0;
+    let nightOwlPts = Number(categoryScores.night_owl) || 0;
+
+    let att = null;
     try {
-      if (typeof attendanceService !== 'undefined' && attendanceService && attendanceService.getStudentDailySummary) {
-        att = attendanceService.getStudentDailySummary(record.id);
+      if (typeof attendanceService !== 'undefined' && attendanceService) {
+        if (typeof attendanceService.getStudentDailySummary === 'function') {
+          att = attendanceService.getStudentDailySummary(record.id);
+        } else if (typeof attendanceService.getStudentAttendanceSummary === 'function') {
+          att = attendanceService.getStudentAttendanceSummary(record.id);
+        }
       }
     } catch (e) {
       // Cyclic import fallback
     }
 
-    const attendancePoints = (att.wonTodayEarly ? (att.todayEarlyPoints || 10) : 0) + (att.wonTodayNight ? 10 : 0);
+    if (att) {
+      if (att.todayEarlyPoints !== undefined && att.todayEarlyPoints > earlyBirdPts) {
+        earlyBirdPts = att.todayEarlyPoints;
+      } else if (att.wonTodayEarly && earlyBirdPts === 0) {
+        earlyBirdPts = att.todayEarlyPoints || 20;
+      }
+      if (att.wonTodayNight && nightOwlPts === 0) {
+        nightOwlPts = 10;
+      }
+    }
+
+    categoryScores.early_bird = earlyBirdPts;
+    categoryScores.night_owl = nightOwlPts;
+
+    const attendancePoints = earlyBirdPts + nightOwlPts;
     const totalPoints = oneTimeSum + attendancePoints;
     const percentage = Math.round((totalPoints / MAX_SCORE) * 1000) / 10;
 
@@ -269,6 +290,7 @@ export class PilotStudyRealtimeDatabase {
       id: record.id,
       student_name: record.student_name,
       one_time_points: oneTimeSum,
+      attendance_points: attendancePoints,
       base_points: totalPoints,
       cumulative_points: totalPoints,
       total_points: totalPoints, // Primary ranking total across pilot study

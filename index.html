@@ -673,7 +673,36 @@
               Save & Publish Geofence
             </button>
           </div>
-        </form>
+                </form>
+      </div>
+
+      <!-- One Device – One Account Security Registry (Mentor / Administrator) -->
+      <div class="att-card" id="deviceAdminDrawer" style="display: none; width: 100%; margin-top: 1rem;">
+        <div class="att-card-header" style="cursor: pointer;" id="headerDeviceDrawerToggle">
+          <div class="att-card-title-group">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+            <span class="att-card-title">One Device – One Account Security Registry (Mentor Admin)</span>
+          </div>
+          <span style="font-size: 0.72rem; color: var(--accent-lime); font-weight: 700;">DEVICE BINDINGS</span>
+        </div>
+
+        <div id="deviceAdminBody" style="display: none; padding-top: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">
+              Enforces <strong>1 Account Per Device</strong>. Only administrators can release a device association to allow a student to switch hardware.
+            </p>
+            <button type="button" id="btnRefreshDeviceBindings" class="admin-btn" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;">
+              Refresh Device Registry
+            </button>
+          </div>
+          <div id="deviceBindingsListContainer" style="display: flex; flex-direction: column; gap: 0.6rem;">
+            <!-- Loaded dynamically -->
+          </div>
+        </div>
       </div>
 
     </div><!-- /#viewAttendance -->

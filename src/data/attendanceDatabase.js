@@ -48,6 +48,43 @@ export const DEFAULT_CAMPUS_SETTINGS = {
 export const TIMEZONE = 'Asia/Kolkata';
 
 /**
+ * Deterministically compute arrival order and early bird points based on login_at
+ */
+export function enrichAttendanceRecords(records) {
+  if (!Array.isArray(records)) return [];
+  const byDate = {};
+  records.forEach(r => {
+    const d = r.attendance_date;
+    if (!byDate[d]) byDate[d] = [];
+    byDate[d].push(r);
+  });
+
+  Object.values(byDate).forEach(dayList => {
+    const verifiedLogins = dayList
+      .filter(r => r.login_at && r.login_location_verified)
+      .sort((a, b) => new Date(a.login_at).getTime() - new Date(b.login_at).getTime());
+
+    verifiedLogins.forEach((rec, idx) => {
+      rec.arrival_order = idx + 1;
+      rec.early_bird_points = Math.max(0, 21 - (idx + 1));
+      rec.is_early_bird = rec.early_bird_points > 0;
+      rec.night_owl_points = (rec.is_night_owl || isStrictlyAfter6PMIST(rec.logout_at || rec.login_at)) ? 10 : 0;
+    });
+
+    dayList.forEach(rec => {
+      if (!rec.login_location_verified || !rec.login_at) {
+        rec.arrival_order = null;
+        rec.early_bird_points = 0;
+        rec.is_early_bird = false;
+        rec.night_owl_points = 0;
+      }
+    });
+  });
+
+  return records;
+}
+
+/**
  * Check if a point [longitude, latitude] or { latitude, longitude } is inside a polygon
  * Uses Ray-Casting algorithm with boundary edge tolerance.
  */
@@ -343,7 +380,7 @@ export class AttendanceService {
       }
 
       const cachedAtt = localStorage.getItem(LOCAL_STORAGE_ATTENDANCE_KEY);
-      if (cachedAtt) this.attendanceRecords = JSON.parse(cachedAtt);
+      if (cachedAtt) this.attendanceRecords = enrichAttendanceRecords(JSON.parse(cachedAtt));
 
       const cachedAwd = localStorage.getItem(LOCAL_STORAGE_AWARDS_KEY);
       if (cachedAwd) this.dailyAwards = JSON.parse(cachedAwd);
@@ -428,7 +465,7 @@ export class AttendanceService {
         { ttlMs: 45000, force, staleWhileRevalidate: true, endpointKey: 'attendance' }
       );
       if (attArr && attArr.length > 0) {
-        this.attendanceRecords = attArr;
+        this.attendanceRecords = enrichAttendanceRecords(attArr);
       }
 
       // 3. Fetch Awards (TTL: 45 seconds with SWR)
@@ -820,8 +857,12 @@ export class AttendanceService {
         currentScores.night_owl = nightOwlPoints;
         changed = true;
       }
+      if (earlyBirdPoints > 0 && currentScores.early_bird !== earlyBirdPoints) {
+        currentScores.early_bird = earlyBirdPoints;
+        changed = true;
+      }
 
-      if (changed) {
+      if (changed || earlyBirdPoints > 0) {
         const allCatIds = [
           'early_bird', 'night_owl', 'leetcode', 'empathizer',
           'workbench', 'frontend', 'dt_playbook', 'assessment',
@@ -831,12 +872,14 @@ export class AttendanceService {
         allCatIds.forEach(id => {
           total += Number(currentScores[id]) || 0;
         });
+        const attendancePts = (Number(currentScores.early_bird) || 0) + (Number(currentScores.night_owl) || 0);
         const percentage = Math.round((total / 125) * 1000) / 10;
 
         await supabase
           .from('pilotstudy')
           .update({
             category_scores: currentScores,
+            attendance_points: attendancePts,
             total_points: total,
             base_points: total,
             cumulative_points: total,
@@ -848,21 +891,27 @@ export class AttendanceService {
           .eq('id', studentId);
 
         // Invalidate cache
+        appQueryCache.invalidate('pilotstudy_cohort_v3');
         appQueryCache.invalidate('pilotstudy_cohort');
 
         // Update local pilotstudyDb if registered
         const db = getPilotstudyDb();
-        if (db && db.getStudentById) {
-          const localStd = db.getStudentById(studentId);
-          if (localStd) {
-            localStd.category_scores = currentScores;
-            localStd.total_points = total;
-            localStd.base_points = total;
-            localStd.cumulative_points = total;
-            localStd.percentage = percentage;
-            db.recalculateRanks();
-            db.saveToCache();
-            db.emit('change', db.getStudents());
+        if (db) {
+          if (typeof db.fetchFromSupabase === 'function') {
+            await db.fetchFromSupabase({ force: true });
+          } else if (db.getStudentById) {
+            const localStd = db.getStudentById(studentId);
+            if (localStd) {
+              localStd.category_scores = currentScores;
+              localStd.attendance_points = attendancePts;
+              localStd.total_points = total;
+              localStd.base_points = total;
+              localStd.cumulative_points = total;
+              localStd.percentage = percentage;
+              db.recalculateRanks();
+              db.saveToCache();
+              db.emit('change', db.getStudents());
+            }
           }
         }
       }
@@ -894,11 +943,15 @@ export class AttendanceService {
       r => r.student_id === studentId && r.attendance_date === today
     );
     if (existing) {
+      const earlyPts = existing.early_bird_points !== undefined 
+        ? existing.early_bird_points 
+        : (existing.arrival_order ? Math.max(0, 21 - existing.arrival_order) : (existing.is_early_bird ? 20 : 0));
       return {
         success: false,
         message: `Already checked in today at ${formatISTTime(existing.login_at)}.`,
         record: existing,
-        earlyBirdAwarded: Boolean(existing.is_early_bird),
+        earlyBirdAwarded: Boolean(existing.is_early_bird || earlyPts > 0),
+        earlyBirdPoints: earlyPts,
         nightOwlAwarded: Boolean(existing.is_night_owl)
       };
     }
@@ -936,7 +989,28 @@ export class AttendanceService {
     // 1. Arrival Order & Early Bird Points Calculation:
     // The first student to log in / check in gets 20 points.
     // Each subsequent student gets 1 point less (2nd gets 19, 3rd gets 18, 4th gets 17... 20th gets 1 pt).
-    const todayExisting = this.attendanceRecords.filter(r => r.attendance_date === today && r.login_location_verified);
+    // Fetch fresh authoritative records for today directly from Supabase to prevent multi-device race conditions
+    let todayExisting = [];
+    try {
+      const { data: dbToday } = await supabase
+        .from('student_attendance')
+        .select('*')
+        .eq('attendance_date', today)
+        .order('login_at', { ascending: true });
+
+      if (dbToday && Array.isArray(dbToday)) {
+        const map = new Map();
+        this.attendanceRecords.forEach(r => map.set(`${r.student_id}_${r.attendance_date}`, r));
+        dbToday.forEach(r => map.set(`${r.student_id}_${r.attendance_date}`, { ...map.get(`${r.student_id}_${r.attendance_date}`), ...r }));
+        this.attendanceRecords = enrichAttendanceRecords(Array.from(map.values()));
+        todayExisting = this.attendanceRecords.filter(r => r.attendance_date === today && r.login_location_verified && r.student_id !== studentId);
+      } else {
+        todayExisting = this.attendanceRecords.filter(r => r.attendance_date === today && r.login_location_verified && r.student_id !== studentId);
+      }
+    } catch (e) {
+      todayExisting = this.attendanceRecords.filter(r => r.attendance_date === today && r.login_location_verified && r.student_id !== studentId);
+    }
+
     const arrivalOrder = todayExisting.length + 1;
     const earlyBirdPoints = Math.max(0, 21 - arrivalOrder);
     const isEarlyBird = earlyBirdPoints > 0;
@@ -945,25 +1019,39 @@ export class AttendanceService {
     // Awarded automatically if check-in occurs after 18:00 (6:00 PM IST)
     const isNightOwl = isStrictlyAfter6PMIST(nowIso);
 
-    // Try Supabase RPC or Direct Insert
-    let serverRecord = null;
-    try {
-      const { data: rpcData, error: rpcErr } = await supabase.rpc('record_student_checkin', {
-        p_student_id: studentId,
-        p_lat: coords.latitude,
-        p_lng: coords.longitude,
-        p_accuracy: coords.accuracy
-      });
+    // Save authoritative record to Supabase using only PostgreSQL schema-valid columns
+    const dbPayload = {
+      student_id: studentId,
+      attendance_date: today,
+      login_at: nowIso,
+      login_latitude: coords.latitude,
+      login_longitude: coords.longitude,
+      login_accuracy_meters: coords.accuracy,
+      login_location_verified: true,
+      status: 'checked_in',
+      is_early_bird: isEarlyBird,
+      is_night_owl: isNightOwl,
+      updated_at: nowIso
+    };
 
-      if (!rpcErr && rpcData && rpcData.success) {
-        serverRecord = rpcData;
+    let serverAssignedId = null;
+    try {
+      const { data: dbData, error: dbErr } = await supabase
+        .from('student_attendance')
+        .upsert(dbPayload, { onConflict: 'student_id,attendance_date' })
+        .select();
+
+      if (dbErr) {
+        console.error('[attendance] Supabase student_attendance upsert error:', dbErr);
+      } else if (dbData && dbData.length > 0) {
+        serverAssignedId = dbData[0].id;
       }
-    } catch (e) {
-      // Fallback to table insert
+    } catch (err) {
+      console.warn('[attendance] Supabase attendance upsert warning:', err);
     }
 
     const newRecord = {
-      id: serverRecord?.attendance_id || `att-${Date.now()}`,
+      id: serverAssignedId || `att-${Date.now()}`,
       student_id: studentId,
       attendance_date: today,
       login_at: nowIso,
@@ -984,13 +1072,16 @@ export class AttendanceService {
       night_owl_points: isNightOwl ? 10 : 0
     };
 
-    // Save locally and persist to Supabase
-    this.attendanceRecords.unshift(newRecord);
-    try {
-      await supabase.from('student_attendance').upsert(newRecord);
-    } catch (err) {
-      console.warn('[attendance] Supabase attendance upsert warning:', err);
+    // Save locally and update in-memory attendance list
+    const existIdx = this.attendanceRecords.findIndex(
+      r => r.student_id === studentId && r.attendance_date === today
+    );
+    if (existIdx >= 0) {
+      this.attendanceRecords[existIdx] = newRecord;
+    } else {
+      this.attendanceRecords.unshift(newRecord);
     }
+    this.attendanceRecords = enrichAttendanceRecords(this.attendanceRecords);
 
     // Recalculate and persist daily awards
     this.recalculateDailyAwards(today);
@@ -1002,6 +1093,18 @@ export class AttendanceService {
       isNightOwl,
       nightOwlPoints: 10
     });
+
+    // Also re-sync all today's checked-in students' points in pilotstudy table to guarantee consistency
+    for (const rec of this.attendanceRecords.filter(r => r.attendance_date === today && r.login_location_verified)) {
+      if (rec.student_id !== studentId) {
+        this.syncStudentPointsForAwards(rec.student_id, {
+          isEarlyBird: rec.is_early_bird,
+          earlyBirdPoints: rec.early_bird_points || 0,
+          isNightOwl: rec.is_night_owl,
+          nightOwlPoints: rec.night_owl_points || 0
+        }).catch(() => {});
+      }
+    }
 
     this.saveToCache();
 
@@ -1094,11 +1197,26 @@ export class AttendanceService {
     record.status = 'completed';
     if (isNightEligible) {
       record.is_night_owl = true;
+      record.night_owl_points = 10;
     }
 
-    // Persist to Supabase
+    // Persist to Supabase with PostgreSQL schema-valid columns
     try {
-      await supabase.from('student_attendance').upsert(record);
+      const dbCheckoutPayload = {
+        student_id: studentId,
+        attendance_date: today,
+        logout_at: nowIso,
+        logout_latitude: coords.latitude,
+        logout_longitude: coords.longitude,
+        logout_accuracy_meters: coords.accuracy,
+        logout_location_verified: true,
+        status: 'completed',
+        is_night_owl: record.is_night_owl || isNightEligible,
+        updated_at: nowIso
+      };
+      await supabase
+        .from('student_attendance')
+        .upsert(dbCheckoutPayload, { onConflict: 'student_id,attendance_date' });
     } catch (err) {
       console.warn('[attendance] Supabase checkout upsert warning:', err);
     }
@@ -1222,14 +1340,23 @@ export class AttendanceService {
       this.dailyAwards.unshift(awardObj);
     }
 
-    // Sync to Supabase
+    // Sync to Supabase using onConflict
     try {
-      supabase.from('daily_attendance_awards').upsert(awardObj);
+      const dbAwardPayload = {
+        attendance_date: dateStr,
+        category,
+        winning_student_id: winningStudentId,
+        awarded_points: points,
+        winning_timestamp: timestamp,
+        scoring_reason: reason,
+        status: winningStudentId ? 'awarded' : 'no_winner',
+        calculated_at: new Date().toISOString()
+      };
+      supabase.from('daily_attendance_awards').upsert(dbAwardPayload, { onConflict: 'attendance_date,category' });
     } catch (e) {
-      // offline fallback
+      console.warn('[attendance] Supabase award upsert warning:', e);
     }
   }
-
 
   /**
    * Get Student Score Summary & Historical Awards Count
@@ -1248,8 +1375,22 @@ export class AttendanceService {
       a => a.category === 'night_owl' && a.winning_student_id === studentId && a.status === 'awarded'
     );
 
-    const earlyBirdPoints = earlyBirdWins.length * 10;
-    const nightOwlPoints = nightOwlWins.length * 10;
+    let earlyBirdPoints = 0;
+    if (todayRecord && todayRecord.login_location_verified) {
+      earlyBirdPoints = todayRecord.early_bird_points !== undefined
+        ? todayRecord.early_bird_points
+        : (todayRecord.arrival_order ? Math.max(0, 21 - todayRecord.arrival_order) : (todayRecord.is_early_bird ? 20 : 0));
+    } else if (earlyBirdWins.length > 0) {
+      earlyBirdPoints = earlyBirdWins.reduce((sum, w) => sum + (w.awarded_points || 20), 0);
+    }
+
+    let nightOwlPoints = 0;
+    if (todayRecord && (todayRecord.is_night_owl || (todayRecord.night_owl_points && todayRecord.night_owl_points > 0))) {
+      nightOwlPoints = todayRecord.night_owl_points || 10;
+    } else if (nightOwlWins.length > 0) {
+      nightOwlPoints = nightOwlWins.reduce((sum, w) => sum + (w.awarded_points || 10), 0);
+    }
+
     const totalAttendancePoints = earlyBirdPoints + nightOwlPoints;
 
     // Check today's awards status
@@ -1260,14 +1401,14 @@ export class AttendanceService {
       a => a.attendance_date === today && a.category === 'night_owl'
     );
 
-    const wonTodayEarly = Boolean(todayRecord?.is_early_bird || todayEarlyAward?.winning_student_id === studentId);
-    const wonTodayNight = Boolean(todayRecord?.is_night_owl || todayNightAward?.winning_student_id === studentId);
+    const wonTodayEarly = Boolean((todayRecord?.is_early_bird || earlyBirdPoints > 0) || todayEarlyAward?.winning_student_id === studentId);
+    const wonTodayNight = Boolean((todayRecord?.is_night_owl || nightOwlPoints > 0) || todayNightAward?.winning_student_id === studentId);
 
     return {
       studentId,
       todayRecord,
-      earlyBirdWinsCount: earlyBirdWins.length,
-      nightOwlWinsCount: nightOwlWins.length,
+      earlyBirdWinsCount: earlyBirdWins.length || (wonTodayEarly ? 1 : 0),
+      nightOwlWinsCount: nightOwlWins.length || (wonTodayNight ? 1 : 0),
       earlyBirdPoints,
       nightOwlPoints,
       totalAttendancePoints,
@@ -1276,6 +1417,29 @@ export class AttendanceService {
       todayEarlyAward,
       todayNightAward,
       allStudentAwards: this.dailyAwards.filter(a => a.winning_student_id === studentId)
+    };
+  }
+
+  /**
+   * Get Student Daily Attendance Summary (including today points breakdown)
+   */
+  getStudentDailySummary(studentId) {
+    const summary = this.getStudentAttendanceSummary(studentId);
+    const todayRec = summary.todayRecord;
+    const todayEarlyPts = todayRec?.early_bird_points !== undefined
+      ? todayRec.early_bird_points
+      : (todayRec?.arrival_order ? Math.max(0, 21 - todayRec.arrival_order) : (todayRec?.is_early_bird ? 20 : 0));
+    const todayNightPts = todayRec?.night_owl_points !== undefined
+      ? todayRec.night_owl_points
+      : (todayRec?.is_night_owl ? 10 : 0);
+
+    return {
+      ...summary,
+      wonTodayEarly: Boolean(todayRec?.is_early_bird || todayEarlyPts > 0),
+      wonTodayNight: Boolean(todayRec?.is_night_owl || todayNightPts > 0),
+      todayEarlyPoints: todayEarlyPts,
+      todayNightPoints: todayNightPts,
+      todayRecord: todayRec
     };
   }
 

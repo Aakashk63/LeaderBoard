@@ -217,7 +217,7 @@ testService.getCurrentGPSPosition = async () => ({
 });
 
 async function runCheckInTest() {
-  const testStudentId = 'std-test-isolated-1';
+  const testStudentId = 'std-demo';
 
   // 1. First Check-in attempt
   const firstResult = await testService.performCheckIn(testStudentId);
@@ -317,23 +317,26 @@ const kavinrajLogin = await authService.signIn({
 assert(kavinrajLogin.success === true, 'Successfully authenticates KAVINRAJ M with Demo@1234', kavinrajLogin.message);
 assert(kavinrajLogin.user.student_id === 'std-1', 'KAVINRAJ M authenticated student_id is std-1');
 
-// 5. Test username login for student 1: "kavinraj"
+// 5. Test username login for student 1: "kavinraj" (same device as student 1 allowed)
 const kavinrajUserLogin = await authService.signIn({
   fullName: 'Kavinraj M',
   identifier: 'kavinraj',
   password: 'Demo@1234',
   role: 'student',
-  isGpsVerified: true
+  isGpsVerified: true,
+  deviceId: 'device-test-kavinraj'
 });
 assert(kavinrajUserLogin.success === true, 'Successfully authenticates KAVINRAJ M via short username "kavinraj"');
 
-// 6. Test Geetan D (with or without spaces in email)
+// 6. Test Geetan D on their own device
 const geetanLogin = await authService.signIn({
   fullName: 'Geetan D',
   identifier: 'geetan.d.cse.2026@snsct.org',
   password: 'Demo@1234',
   role: 'student',
-  isGpsVerified: true
+  isGpsVerified: true,
+  deviceId: 'device-test-geetan',
+  hardwareHash: 'hw-hash-geetan'
 });
 assert(geetanLogin.success === true, 'Successfully authenticates Geetan D (std-6)');
 
@@ -342,17 +345,21 @@ const geetanSpacedLogin = await authService.signIn({
   identifier: 'geetan.d.cse.2026@snsct. org',
   password: 'Demo@1234',
   role: 'student',
-  isGpsVerified: true
+  isGpsVerified: true,
+  deviceId: 'device-test-geetan',
+  hardwareHash: 'hw-hash-geetan'
 });
 assert(geetanSpacedLogin.success === true, 'Successfully handles email with whitespace as present in sheet');
 
-// 7. Test Student 18: Aishwarya
+// 7. Test Student 18: Aishwarya on their own device
 const aishwaryaLogin = await authService.signIn({
   fullName: 'Aishwarya',
   identifier: 'aishwarya.m.cse.2026@snsct.org',
   password: 'Demo@1234',
   role: 'student',
-  isGpsVerified: true
+  isGpsVerified: true,
+  deviceId: 'device-test-aishwarya',
+  hardwareHash: 'hw-hash-aishwarya'
 });
 assert(aishwaryaLogin.success === true, 'Successfully authenticates Aishwarya (std-18)');
 
